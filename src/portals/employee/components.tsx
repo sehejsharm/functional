@@ -324,9 +324,8 @@ export function StepList({ steps, version, reader, hideLockHint, ...rest }: {
   done?: string[]; photos?: string[]; interactive?: boolean; mode?: 'guided' | 'standard'; onToggle?: (id: string) => void; onPhoto?: (id: string) => void; title?: string
 }) {
   return (
-    <div className={clsx((reader || hideLockHint) && '[&>section>p]:hidden',
-      reader && '[&>section>div:first-child_p]:hidden [&>section>div:nth-child(2)]:hidden [&_li>button]:hidden [&_li>div_button]:hidden')}>
-      <SopSteps steps={steps} version={version} interactive={!!rest.interactive} {...rest} />
+    <div className={clsx(hideLockHint && !reader && '[&>section>p]:hidden')}>
+      <SopSteps steps={steps} version={version} interactive={!!rest.interactive} readOnly={reader} {...rest} />
     </div>
   )
 }
