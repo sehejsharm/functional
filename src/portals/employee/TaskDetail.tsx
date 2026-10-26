@@ -70,8 +70,8 @@ export function TaskDetail() {
         <div className="flex items-center gap-2 rounded-card bg-amber/15 p-4 font-semibold text-amber"><Ban size={18} /> Do not enter yet · this room opens at {fTime(task.start)} hotel time</div>
       ) : null}
 
-      <SopSteps steps={v.steps} version={v.version} done={task.doneStepIds} photos={task.photoStepIds} interactive={interactive} mode={task.mode}
-        onToggle={(sid) => toggleStep(task.id, sid)} onPhoto={(sid) => attachPhoto(task.id, sid)} />
+      <SopSteps steps={v.steps} version={v.version} done={task.doneStepIds} photos={task.photoStepIds} photoKeys={task.photoKeys} interactive={interactive} mode={task.mode}
+        onToggle={(sid) => toggleStep(task.id, sid)} onPhoto={(sid, file) => void attachPhoto(task.id, sid, file)} />
 
       <div className="sticky bottom-24 z-10 lg:bottom-4">
         {task.status === 'scheduled' && <Button variant="gold" size="lg" className="w-full shadow-lift" disabled={gated || blocked} onClick={() => startTask(task.id)}>Start room</Button>}

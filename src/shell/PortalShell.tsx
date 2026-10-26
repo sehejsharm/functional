@@ -3,11 +3,11 @@ import clsx from 'clsx'
 import { LogOut, Menu } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Avatar, Count, Drawer, HelpBadge, Logo } from '@/components/ui'
+import { Avatar, Button, Count, Drawer, HelpBadge, Logo } from '@/components/ui'
 import { byId, useDB } from '@/lib/db'
-import { canAccess, tierLabel } from '@/lib/permissions'
+import { canAccess } from '@/lib/permissions'
 import { useGrant, useGrants, useSession } from '@/lib/session'
-import type { Portal, Tier } from '@/lib/types'
+import type { Portal } from '@/lib/types'
 import { HelpDrawer } from './HelpDrawer'
 import { LockIcon, NAV, PORTAL_CONTEXT, type NavItem } from './nav'
 
@@ -77,51 +77,30 @@ export function SwitchingOverlay() {
 export function ConnectionChip() {
   const conn = useDB((s) => s.connection)
   const outbox = useDB((s) => s.outbox.length)
-  const setConnection = useDB((s) => s.setConnection)
+  const retry = useDB((s) => s.retryConnection)
+  const rev = useDB((s) => s.rev)
   const [open, setOpen] = useState(false)
   const offline = conn.hotel === 'offline'
   return (
     <>
       <div className="flex items-center justify-between gap-2 rounded-xl bg-forest-950/50 px-3 py-2 text-xs">
         <span className="flex items-center gap-2">
-          <span className={clsx('h-2 w-2 rounded-full', offline ? 'bg-danger' : 'bg-ok')} />
-          {offline ? 'Hotel connection offline · shared demo' : 'Hotel connection live'}
+          <span className={clsx('h-2 w-2 rounded-full', offline ? 'bg-danger' : conn.hotel === 'connecting' ? 'bg-amber' : 'bg-ok')} />
+          {offline ? 'Hotel connection offline' : conn.hotel === 'connecting' ? 'Connecting to hotel…' : 'Hotel connection live'}
         </span>
         <button className="text-gold-400 underline-offset-2 hover:underline" onClick={() => setOpen(true)}>Details</button>
       </div>
       <Drawer open={open} onClose={() => setOpen(false)} title="Hotel connection">
         <dl className="space-y-3 text-sm">
           <div className="flex justify-between"><dt className="text-sage-300">Hotel system</dt><dd>{conn.hotel}</dd></div>
-          <div className="flex justify-between"><dt className="text-sage-300">Check-in service</dt><dd>{conn.checkin === 'ok' ? 'confirmed' : 'needs attention'}</dd></div>
+          <div className="flex justify-between"><dt className="text-sage-300">Check-in service</dt><dd>{conn.checkin === 'ok' ? 'confirmed' : 'waiting to confirm'}</dd></div>
           <div className="flex justify-between"><dt className="text-sage-300">Changes waiting to sync</dt><dd>{outbox}</dd></div>
+          <div className="flex justify-between"><dt className="text-sage-300">Data revision</dt><dd>{rev}</dd></div>
         </dl>
-        <p className="mt-5 text-xs text-sage-300">Demo controls — simulate the two independent failure states:</p>
-        <div className="mt-2 grid gap-2">
-          <button className="card px-3 py-2 text-left text-sm" onClick={() => setConnection({ hotel: offline ? 'online' : 'offline' })}>
-            {offline ? 'Restore hotel connection' : 'Drop hotel connection'}
-          </button>
-          <button className="card px-3 py-2 text-left text-sm" onClick={() => setConnection({ checkin: conn.checkin === 'ok' ? 'attention' : 'ok' })}>
-            {conn.checkin === 'ok' ? 'Fail check-in confirmation' : 'Confirm check-in service'}
-          </button>
-        </div>
+        <p className="mt-5 text-xs text-sage-300">Work done while offline is kept on this device and sent in order as soon as the hotel server answers.</p>
+        <Button variant="primary" className="mt-3 w-full" onClick={retry}>Reconnect now</Button>
       </Drawer>
     </>
-  )
-}
-
-function DemoTierPicker({ portal }: { portal: Portal }) {
-  const demoTier = useSession((s) => s.demoTier)
-  const setDemoTier = useSession((s) => s.setDemoTier)
-  if (portal === 'employee') return null
-  return (
-    <label className="block text-[11px] text-sage-300">
-      Demo access tier
-      <select className="input mt-1 !py-1.5 !text-xs" value={demoTier ?? ''} onChange={(e) => setDemoTier((e.target.value || null) as Tier | null)}>
-        <option value="">{tierLabel.base} (as granted)</option>
-        <option value="senior">{tierLabel.senior}</option>
-        <option value="admin">{tierLabel.admin}</option>
-      </select>
-    </label>
   )
 }
 
@@ -164,9 +143,8 @@ function NavRow({ item, locked, count, onNavigate }: { item: NavItem; locked: bo
 }
 
 function Sidebar({ portal, onNavigate }: { portal: Portal; onNavigate?: () => void }) {
-  const { person, grant } = usePersona(portal)
-  const property = useDB((s) => s.properties.find((p) => p.id === grant?.propertyId))
-  const allProps = useDB((s) => s.properties)
+  const { person } = usePersona(portal)
+  const property = useDB((s) => s.property)
   const signOut = useSession((s) => s.signOut)
   const nav = useNavigate()
   const [help, setHelp] = useState(false)
@@ -180,18 +158,15 @@ function Sidebar({ portal, onNavigate }: { portal: Portal; onNavigate?: () => vo
           <div className="min-w-0"><div className="truncate font-semibold text-white">{person.name}</div><div className="truncate text-xs text-sage-300">{person.title}</div></div>
         </div>
       )}
-      <button className="-mt-3 flex items-center gap-1.5 self-start text-xs text-sage-300 hover:text-white" onClick={() => { signOut(); nav('/') }}>
-        <LogOut size={12} /> Leave shared demo
+      <button className="-mt-3 flex items-center gap-1.5 self-start text-xs text-sage-300 hover:text-white" onClick={() => { void signOut().then(() => nav('/')) }}>
+        <LogOut size={12} /> Sign out
       </button>
       <div className="rounded-xl border border-white/10 bg-forest-950/40 px-3 py-2.5">
-        {allProps.length > 1
-          ? <select className="input !py-1" aria-label="Property">{allProps.map((p) => <option key={p.id}>{p.name}</option>)}</select>
-          : <div className="text-sm font-semibold text-white">{property?.name}</div>}
+        <div className="text-sm font-semibold text-white">{property.name}</div>
         <div className="text-xs text-sage-300">{PORTAL_CONTEXT[portal]}</div>
       </div>
       <div className="flex-1 overflow-y-auto"><NavList portal={portal} onNavigate={onNavigate} /></div>
       <div className="space-y-3">
-        <DemoTierPicker portal={portal} />
         <ConnectionChip />
       </div>
       <HelpDrawer open={help} onClose={() => setHelp(false)} portal={portal} />

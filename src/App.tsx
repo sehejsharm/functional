@@ -21,7 +21,9 @@ import { MySops } from './portals/author/MySops'
 import { CreateSop } from './portals/author/CreateSop'
 import { FeedbackRequests } from './portals/author/Feedback'
 import { ReviewsReleases, VersionReview } from './portals/author/Reviews'
-import { PlatformFoundation, UseResults } from './portals/author/Gated'
+import { UseResults } from './portals/author/Gated'
+import { PlatformFoundation } from './portals/author/Platform'
+import { JoinScreen, SetupScreen } from './auth/Setup'
 
 function PortalLayout({ portal }: { portal: Portal }) {
   return <RequirePortal portal={portal}><PortalShell portal={portal}><Outlet /></PortalShell></RequirePortal>
@@ -30,13 +32,15 @@ const gate = (portal: Portal, need: Tier, feature: string, el: JSX.Element) => <
 
 export default function App() {
   const portal = useSession((s) => s.portal)
-  const accountId = useSession((s) => s.accountId)
+  const token = useSession((s) => s.token)
   return (
     <>
       <SwitchingOverlay />
       <Routes>
-        <Route path="/" element={accountId && portal ? <Navigate to={`/${portal}`} replace /> : <LoginScreen />} />
+        <Route path="/" element={token && portal ? <Navigate to={`/${portal}`} replace /> : <LoginScreen />} />
         <Route path="/screens" element={<ScreensDirectory />} />
+        <Route path="/setup" element={<SetupScreen />} />
+        <Route path="/join/:propertyId" element={<JoinScreen />} />
         <Route path="/employee" element={<PortalLayout portal="employee" />}>
           <Route index element={<EmployeeWork />} />
           <Route path="tasks/:id" element={<TaskDetail />} />
@@ -56,6 +60,7 @@ export default function App() {
           <Route path="sop-policy" element={<SopPolicy />} />
           <Route path="guided-or-standard" element={<GuidedOrStandard />} />
           <Route path="join-requests" element={<JoinRequests />} />
+          <Route path="platform" element={gate('manager', 'admin', 'Platform foundation', <PlatformFoundation />)} />
           <Route path="lead/board" element={gate('manager', 'senior', 'Property board', <PropertyBoard />)} />
           <Route path="lead/planner" element={gate('manager', 'senior', 'Shift planner', <ShiftPlanner />)} />
           <Route path="lead/pulse" element={gate('manager', 'senior', 'Operations pulse', <OperationsPulse />)} />

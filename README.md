@@ -1,46 +1,45 @@
 # Mise · Staff
 
-Hotel Service Execution Platform: an Employee, a Manager and an Author portal behind one login.
+Hotel Service Execution Platform: Employee, Manager and Author portals behind one login.
 
-**The core rule:** every task is a live instance of one exact, published SOP version. Managers assign against the
-current published version ("You reviewed this exact version"). Authors own Draft → Review (2 independent approvals) → Release.
+**Core rule:** every task is a live instance of one exact, published SOP version. Managers assign against the
+current published version only after reviewing it. Authors own Draft → Review (two independent approvals) → Release.
 A release never changes rooms already in progress; they stay pinned to their version.
 
-## Run
+## Architecture
+
+| Layer | Where | What |
+| --- | --- | --- |
+| Web app | Vercel | React + Vite + Tailwind PWA (`src/`) |
+| API | Cloudflare Worker (`worker/src/index.ts`) | Hono: sign-in, setup, admin accounts, photos, actions |
+| Operational data | Durable Object per property (`worker/src/hub.ts`) | Single consistent writer, SQLite storage, live WebSocket updates |
+| Accounts & sessions | Cloudflare D1 (`worker/migrations`) | Passkeys stored as HMAC with a secret pepper; 14-day sessions; rate-limited sign-in |
+| Step photos | Cloudflare R2 | Private; only the uploader, managers and authors can view |
+
+Every write is an action handled by `src/lib/domain.ts`. The Worker runs it as the authority (permissions, tiers,
+two-approval quorum, pinned versions, "do not enter yet" gating). The browser runs the same function first so the
+UI updates instantly, and queues writes offline, replaying them in order when the hotel connection returns.
+
+## Deploy
+
+1. **API (Cloudflare):** with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` set:
+   ```bash
+   npm install
+   ALLOWED_ORIGINS=https://<your-app>.vercel.app npm run deploy:api
+   ```
+   Creates D1 + R2, applies migrations, sets the `PASSKEY_PEPPER` / `SETUP_TOKEN` secrets, deploys, and prints the
+   setup token once.
+2. **Web (Vercel):** set `VITE_API_URL` to the Worker URL and deploy (`vercel.json` handles SPA routing).
+3. Open `/setup` on the web app, enter the setup token, and create the property and first Property admin. You get
+   that admin's passkey once. Add roles, rooms, shifts and staff in **Platform foundation**; each person's passkey is
+   shown once when you create it.
+
+## Local development
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173 — demo passkey: miseauroragrand26
-npm run build
+printf 'PASSKEY_PEPPER=dev\nSETUP_TOKEN=dev\n' > worker/.dev.vars
+npm run db:migrate:local
+npm run dev:api        # http://localhost:8787
+npm run dev            # http://localhost:5173
 ```
-
-## Deploy on Vercel
-
-Import the repo in Vercel. `vercel.json` sets the Vite build and SPA rewrites (deep links like `/manager/sops` work).
-Environment variables (Project → Settings → Environment Variables; use different values for Preview and Production):
-
-| Variable | Purpose |
-| --- | --- |
-| `VITE_DEMO_PASSPHRASE` | Shared demo passkey. When set, the login screen stops showing the default hint. |
-| `VITE_FIREBASE_*` | Optional. Leave unset to run on the built-in demo backend. |
-
-## Structure
-
-```
-src/theme            design tokens (CSS variables → Tailwind)
-src/components/ui    primitives: Button, Pill, Drawer, Tabs, CheckMark, ShiftEventInterstitial…
-src/lib              domain types, seed data, demo backend (db.ts), session/role grants, permissions, hotel time
-src/shell            portal shell, persona switcher, tier gates, help drawer, All screens directory
-src/portals/{employee,manager,author}
-firestore.rules      server-side enforcement for the Firebase backend
-```
-
-## Demo notes
-
-- Data lives in `src/lib/db.ts`, a local store shaped like the Firestore collections and persisted in `localStorage`
-  (other tabs update live). It re-seeds each hotel day. Reset it from Author → Platform foundation.
-- Locked screens (Acknowledgment ledger, Team progress, Lead operations…) need Senior manager or Property admin.
-  Use **Demo access tier** in the sidebar to preview them.
-- **Hotel connection → Details** in the sidebar simulates the two independent failure states (hotel system offline,
-  check-in not confirmed). Step ticks made offline queue and clear on reconnect.
-- All times are hotel time (Asia/Colombo), never device time.

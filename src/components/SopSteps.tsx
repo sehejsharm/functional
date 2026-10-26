@@ -2,12 +2,13 @@ import { motion } from 'framer-motion'
 import clsx from 'clsx'
 import { Camera, ShieldCheck } from 'lucide-react'
 import type { SopStep } from '@/lib/types'
+import { photoUrl } from '@/lib/api'
 import { CheckMark, StepIcon } from './ui'
 
 /** The SOP exactly as an Employee sees it. Shared by the task view and the Author's "Preview draft". */
-export function SopSteps({ steps, version, done = [], photos = [], interactive, mode = 'guided', onToggle, onPhoto }: {
-  steps: SopStep[]; version: string; done?: string[]; photos?: string[]; interactive: boolean; mode?: 'guided' | 'standard'
-  onToggle?: (id: string) => void; onPhoto?: (id: string) => void
+export function SopSteps({ steps, version, done = [], photos = [], photoKeys = {}, interactive, mode = 'guided', onToggle, onPhoto }: {
+  steps: SopStep[]; version: string; done?: string[]; photos?: string[]; photoKeys?: Record<string, string>; interactive: boolean; mode?: 'guided' | 'standard'
+  onToggle?: (id: string) => void; onPhoto?: (id: string, file: File) => void
 }) {
   // Standard mode trusts experienced staff: only milestone (checked) steps and the last step are ticked.
   const visible = mode === 'standard' ? steps.filter((s, i) => s.requireCheck || i === steps.length - 1) : steps
@@ -36,11 +37,13 @@ export function SopSteps({ steps, version, done = [], photos = [], interactive, 
                   <div className="mt-2 flex flex-wrap gap-2">
                     {s.requireCheck && <span className="inline-flex items-center gap-1 text-xs font-semibold text-forest-700"><ShieldCheck size={13} /> Recorded check · independent verification</span>}
                     {s.allowPhoto && (
-                      <button disabled={!interactive} onClick={() => onPhoto?.(s.id)}
-                        className="inline-flex items-center gap-1 rounded-pill border border-sage-300 px-2 py-0.5 text-xs text-ink disabled:opacity-50">
-                        <Camera size={12} /> {photos.includes(s.id) ? 'Photo attached' : 'Add optional photo'}
-                      </button>
+                      <label className={clsx('inline-flex items-center gap-1 rounded-pill border border-sage-300 px-2 py-0.5 text-xs text-ink', interactive ? 'cursor-pointer hover:border-forest-700' : 'opacity-50')}>
+                        <Camera size={12} /> {photos.includes(s.id) ? 'Replace photo' : 'Add optional photo'}
+                        <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={!interactive}
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) onPhoto?.(s.id, f); e.target.value = '' }} />
+                      </label>
                     )}
+                    {photoKeys[s.id] && <img src={photoUrl(photoKeys[s.id]!)} alt={`Photo for step ${n}`} className="h-16 w-16 rounded-lg object-cover" />}
                   </div>
                 </div>
               </div>

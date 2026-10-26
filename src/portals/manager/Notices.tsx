@@ -13,19 +13,20 @@ export function HotelNotices() {
   const now = useNow()
   const { notices, shifts, people, ackEvents, sendNotice } = useDB()
   const live = useLiveShift(now, shifts)
-  const templates = notices.filter((n) => n.sample && !n.sentAt).concat(notices.filter((n) => n.sample && n.sentAt))
-  const [tplId, setTplId] = useState(templates[0]?.id)
+  const templates = notices.filter((n) => n.sample && !n.sentAt)
+  const [draft, setDraft] = useState({ title: '', body: '', replyNeeded: false })
   const [picking, setPicking] = useState(false)
   const [audience, setAudience] = useState<'team' | 'people'>('team')
-  const [teamShiftId, setTeamShiftId] = useState(live?.id ?? shifts[0].id)
+  const [teamShiftId, setTeamShiftId] = useState(live?.id ?? shifts[0]?.id ?? '')
   const [chosen, setChosen] = useState<string[]>([])
   const [sent, setSent] = useState(false)
   const [detail, setDetail] = useState<string | null>(null)
-  const tpl = byId(notices, tplId)
-  const team = byId(shifts, teamShiftId)!
-  const recipients = audience === 'team' ? team.memberIds : chosen
+  const tpl = draft.title.trim() ? draft : null
+  const { saveNoticeTemplate } = useDB()
+  const team = byId(shifts, teamShiftId)
+  const recipients = audience === 'team' ? team?.memberIds ?? [] : chosen
   const onShiftNow = live ? live.memberIds.map((id) => byId(people, id)?.name.split(' ')[0]).join(', ') : 'No one'
-  const teamLabel = `${team.team} · ${team.name.toLowerCase()}`
+  const teamLabel = team ? `${team.team} · ${team.name.toLowerCase()}` : 'team'
 
   const sentList = notices.filter((n) => n.sentAt).sort((a, b) => b.sentAt!.localeCompare(a.sentAt!))
   const d = byId(notices, detail)
@@ -51,14 +52,17 @@ export function HotelNotices() {
         <div className="space-y-5">
           <div>
             <span className="label">Notice</span>
-            {tpl && (
-              <div className="flex items-start gap-3 rounded-xl border border-gold-500/50 bg-gold-500/5 p-4">
-                <span className="mt-1 h-4 w-4 shrink-0 rounded-full border-4 border-gold-500" />
-                <div className="flex-1"><div className="font-semibold text-white">{tpl.title}</div><p className="text-sm text-sage-300">{tpl.body}</p>
-                  <div className="mt-1 text-xs text-sage-300">Today · {tpl.replyNeeded ? 'Reply needed' : 'No reply'} · {tpl.sample ? 'Sample' : 'Custom'}</div></div>
-                <button onClick={() => setPicking(true)} className="text-sm text-gold-400 hover:underline">Change</button>
+            <div className="space-y-3 rounded-xl border border-gold-500/40 bg-gold-500/5 p-4">
+              <input className="input" placeholder="Title, e.g. VIP arrival on floor 3" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+              <textarea className="input min-h-24" placeholder="What does the team need to know?" value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} />
+              <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                <label className="flex items-center gap-2 text-sage-200"><input type="checkbox" className="accent-[rgb(201,162,75)]" checked={draft.replyNeeded} onChange={(e) => setDraft({ ...draft, replyNeeded: e.target.checked })} /> Reply needed</label>
+                <div className="flex gap-3">
+                  {templates.length > 0 && <button type="button" onClick={() => setPicking(true)} className="text-gold-400 hover:underline">Use a saved notice</button>}
+                  <button type="button" disabled={!tpl} onClick={() => saveNoticeTemplate(draft)} className="text-gold-400 hover:underline disabled:opacity-40">Save for reuse</button>
+                </div>
               </div>
-            )}
+            </div>
           </div>
           <div><span className="label">Send to</span>
             <Tabs value={audience} onChange={setAudience} items={[{ id: 'team', label: 'A shift team' }, { id: 'people', label: 'Chosen people' }]} /></div>
@@ -82,8 +86,8 @@ export function HotelNotices() {
           {tpl && <p className="rounded-xl bg-forest-950/40 p-3 text-sm text-sage-200">Sends <b className="text-white">{tpl.title}</b> to {recipients.length} people. Opening or replying is never task acceptance.</p>}
           <div className="flex items-center gap-3">
             <Button variant="gold" disabled={!tpl || !recipients.length} onClick={() => {
-              sendNotice({ title: tpl!.title, body: tpl!.body, replyNeeded: tpl!.replyNeeded, audience, teamShiftId: audience === 'team' ? teamShiftId : undefined, recipientIds: recipients, sentById: me!.id })
-              setSent(true); setTimeout(() => setSent(false), 2500)
+              sendNotice({ title: tpl!.title.trim(), body: tpl!.body, replyNeeded: tpl!.replyNeeded, audience, teamShiftId: audience === 'team' ? teamShiftId : undefined, recipientIds: recipients, sentById: me!.id })
+              setSent(true); setDraft({ title: '', body: '', replyNeeded: false }); setTimeout(() => setSent(false), 2500)
             }}><Send size={15} /> Send to {audience === 'team' ? teamLabel : 'chosen people'} · {recipients.length} people</Button>
             {sent && <span className="text-sm text-ok">Sent.</span>}
           </div>
@@ -92,7 +96,7 @@ export function HotelNotices() {
 
       <Drawer open={picking} onClose={() => setPicking(false)} title="Choose a notice">
         <ul className="space-y-2">{templates.map((t) => (
-          <li key={t.id}><button onClick={() => { setTplId(t.id); setPicking(false) }} className={clsx('card w-full p-4 text-left', t.id === tplId && 'border-gold-500/60')}>
+          <li key={t.id}><button onClick={() => { setDraft({ title: t.title, body: t.body, replyNeeded: t.replyNeeded }); setPicking(false) }} className="card w-full p-4 text-left">
             <div className="font-semibold text-white">{t.title}</div><p className="text-sm text-sage-300">{t.body}</p></button></li>))}</ul>
       </Drawer>
       <Drawer open={!!d} onClose={() => setDetail(null)} title={d?.title ?? ''}>

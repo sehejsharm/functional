@@ -5,7 +5,7 @@ import type { Portal } from '@/lib/types'
 
 const FAQ: Record<Portal | 'login', { q: string; a: string }[]> = {
   login: [
-    { q: 'Where do I get my passkey?', a: 'Your hotel manager issues it. Ask at the housekeeping office if you have lost it.' },
+    { q: 'Where do I get my passkey?', a: 'Your property admin creates it for you. If you lose it, they can issue a new one — the old one stops working.' },
     { q: 'Can I paste my passkey?', a: 'Yes. Paste, password managers and phone autofill all work.' },
   ],
   employee: [
@@ -29,7 +29,7 @@ const FAQ: Record<Portal | 'login', { q: string; a: string }[]> = {
 export function HelpDrawer({ open, onClose, portal }: { open: boolean; onClose: () => void; portal: Portal | 'login' }) {
   const [q, setQ] = useState('')
   const items = useMemo(() => FAQ[portal].filter((f) => (f.q + f.a).toLowerCase().includes(q.toLowerCase())), [portal, q])
-  const [sent, setSent] = useState(false)
+  const support = import.meta.env.VITE_SUPPORT_EMAIL as string | undefined
   return (
     <Drawer open={open} onClose={onClose} title="Help">
       <SearchBox value={q} onChange={setQ} placeholder="Search help" />
@@ -39,9 +39,9 @@ export function HelpDrawer({ open, onClose, portal }: { open: boolean; onClose: 
         ))}
         {!items.length && <li className="text-sm text-sage-300">No answers match. Try other words, or contact support.</li>}
       </ul>
-      <Button variant="primary" className="mt-6 w-full" onClick={() => setSent(true)} disabled={sent}>
-        <LifeBuoy size={16} /> {sent ? 'Support has been notified' : 'Contact support'}
-      </Button>
+      {support && <a href={`mailto:${support}?subject=${encodeURIComponent(`Mise help (${portal})`)}`} className="mt-6 block">
+        <Button variant="primary" className="w-full"><LifeBuoy size={16} /> Contact support</Button>
+      </a>}
     </Drawer>
   )
 }

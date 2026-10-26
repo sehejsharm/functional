@@ -7,17 +7,17 @@ const GROUPS: { title: string; screens: [string, string, boolean?][] }[] = [
   { title: 'Staff V2B · Daily operations', screens: [
     ['Today', '/employee'], ['My shift', '/employee'], ['Guest requests', '/employee'], ['My attendance', '/employee/me'], ['Me', '/employee/me'],
     ['Notices', '/employee'], ['End shift', '/employee'], ['Go early', '/employee'], ['SOP guides', '/employee/guides'],
-    ['Room steps', '/employee/tasks/t-114'], ['Do room task', '/employee/tasks/t-114'], ['Step photo', '/employee/tasks/t-114'],
+    ['Room steps', '/employee'], ['Do room task', '/employee'], ['Step photo', '/employee'],
   ] },
   { title: 'Lead operations', screens: [['Property board', '/manager/lead/board', true], ['Shift planner', '/manager/lead/planner', true], ['Operations pulse', '/manager/lead/pulse', true]] },
   { title: 'Manage people & standards', screens: [
-    ['Manager overview', '/manager', true], ['Team progress', '/manager/team-progress', true], ['Staff detail', '/manager/staff/maya', true], ['SOP results', '/manager/sop-results', true],
+    ['Manager overview', '/manager', true], ['Team progress', '/manager/team-progress', true], ['Staff detail', '/manager/team-progress', true], ['SOP results', '/manager/sop-results', true],
     ['Assignments & verification', '/manager/assign-rooms'], ['Hotel notices', '/manager/notices'], ['Guided or Standard', '/manager/guided-or-standard'],
     ['Join requests', '/manager/join-requests'], ['Employee SOPs', '/manager/sops'], ['Hotel SOP policy', '/manager/sop-policy'], ['Acknowledgment ledger', '/manager/acknowledgments', true],
   ] },
   { title: 'Author standards', screens: [
     ['My SOPs', '/author'], ['Create SOP', '/author/new'], ['Feedback & requests', '/author/feedback'], ['Reviews & releases', '/author/reviews'],
-    ['Use & results', '/author/use-results', true], ['Platform foundation', '/author/platform', true],
+    ['Use & results', '/author/use-results', true], ['Platform foundation', '/manager/platform', true],
   ] },
 ]
 

@@ -1,8 +1,8 @@
 import clsx from 'clsx'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { PageHeader, Section, Tabs } from '@/components/ui'
-import { useDB } from '@/lib/db'
+import { Button, PageHeader, Pill, Section, Tabs } from '@/components/ui'
+import { byId, useDB } from '@/lib/db'
 import { fTime, hotelDateKey } from '@/lib/time'
 import type { AttendanceMark } from '@/lib/types'
 import { usePersona } from '@/shell/PortalShell'
@@ -67,10 +67,33 @@ export function EmployeeMe() {
           <span className="flex items-center gap-1.5"><span className="h-5 w-5 rounded border border-white/5 bg-forest-950/30" />No mark · No record</span>
         </div>
       </Section>
+      <TimeOff personId={person?.id ?? ''} />
       <Section title={new Date(selected + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })}>
         {sel ? <p className="text-sm text-white">{MARK[sel.mark].label} at {fTime(sel.at)}</p> : <p className="text-sm text-sage-300">No mark · No record</p>}
         {selTasks.length > 0 && <p className="mt-2 text-sm text-sage-300">{selTasks.filter((t) => t.status === 'done').length} of {selTasks.length} rooms completed.</p>}
       </Section>
     </div>
+  )
+}
+
+function TimeOff({ personId }: { personId: string }) {
+  const { shifts, cover, requestTimeOff } = useDB()
+  const mineShifts = shifts.filter((s) => s.memberIds.includes(personId))
+  const [shiftId, setShiftId] = useState(mineShifts[0]?.id ?? '')
+  const [date, setDate] = useState('')
+  const [note, setNote] = useState('')
+  const mine = cover.filter((c) => c.personId === personId && c.kind === 'time_off')
+  return (
+    <Section title="Time off">
+      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_2fr_auto]">
+        <select className="input" aria-label="Shift" value={shiftId} onChange={(e) => setShiftId(e.target.value)}>{mineShifts.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+        <input type="date" className="input" aria-label="Date" min={hotelDateKey()} value={date} onChange={(e) => setDate(e.target.value)} />
+        <input className="input" placeholder="Reason (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+        <Button variant="gold" disabled={!shiftId || !date} onClick={() => { requestTimeOff(shiftId, date, note); setDate(''); setNote('') }}>Ask</Button>
+      </div>
+      {mine.length > 0 && <ul className="mt-4 space-y-1.5 text-sm">{mine.map((c) => (
+        <li key={c.id} className="flex items-center justify-between"><span>{c.date} · {byId(shifts, c.shiftId)?.name}{c.note ? ` · ${c.note}` : ''}</span>
+          <Pill tone={c.status === 'approved' ? 'ok' : c.status === 'declined' ? 'danger' : 'warn'}>{c.status}</Pill></li>))}</ul>}
+    </Section>
   )
 }

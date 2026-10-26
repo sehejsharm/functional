@@ -5,11 +5,15 @@ export type Portal = 'employee' | 'manager' | 'author'
 /** base = shift manager / room attendant / author; senior = senior manager; admin = property admin */
 export type Tier = 'base' | 'senior' | 'admin'
 
-export interface Property { id: string; name: string; city: string }
+export interface Property {
+  id: string; name: string; city: string; timeZone: string
+  /** Platform foundation settings */
+  codeScheme: string; defaultTimeTargetMin: number
+}
 
 export interface RoleGrant { propertyId: string; portal: Portal; tier: Tier; personId: string }
 
-export interface Account { id: string; label: string; grants: RoleGrant[]; primary: Portal }
+export interface Account { id: string; personId: string; name: string; grants: RoleGrant[]; disabled?: boolean }
 
 export interface JobRole { id: string; propertyId: string; name: string; team: string }
 
@@ -45,8 +49,9 @@ export interface SopVersion {
 
 export interface Sop { id: string; propertyId: string; code: string; currentVersionId: string | null }
 
+/** A recurring shift. start/end are hotel-local "HH:MM"; an end before start crosses midnight. */
 export interface Shift {
-  id: string; propertyId: string; name: 'Morning' | 'Afternoon' | 'Night'; start: string; end: string; staffTarget: number
+  id: string; propertyId: string; name: string; start: string; end: string; staffTarget: number
   team: string; memberIds: string[]
 }
 
@@ -61,6 +66,8 @@ export interface Task {
   sopVersionId: string
   start: string; end: string; priority: Priority; status: TaskStatus
   doneStepIds: string[]; photoStepIds: string[]
+  /** stepId → R2 object key */
+  photoKeys: Record<string, string>
   mode: 'guided' | 'standard'
   startedAt?: string; completedAt?: string
   urgentEnded?: { at: string; reason: string; seen: boolean }
@@ -94,5 +101,7 @@ export interface Feedback {
 }
 
 export interface JoinRequest { id: string; propertyId: string; name: string; jobRoleId: string; shiftId: string; at: string; status: 'pending' | 'approved' | 'declined' }
+
+export interface Issue { id: string; propertyId: string; taskId: string; personId: string; text: string; at: string; status: 'open' | 'resolved' }
 
 export interface AuditEntry { id: string; propertyId: string; actorId: string; action: string; detail: string; at: string }

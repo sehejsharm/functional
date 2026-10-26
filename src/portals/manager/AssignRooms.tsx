@@ -6,10 +6,11 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router-dom'
 import { z } from 'zod'
-import { Avatar, Button, PageHeader, Pill, SearchBox, Section } from '@/components/ui'
+import { SopSteps } from '@/components/SopSteps'
+import { Avatar, Button, Drawer, Empty, PageHeader, Pill, SearchBox, Section } from '@/components/ui'
 import { byId, priorityLabel, useDB } from '@/lib/db'
 import { useNow } from '@/lib/hooks'
-import { fDateTime, fTime, fromHotelInput, hotelDateKey, MIN, toHotelInput } from '@/lib/time'
+import { fDateTime, fTime, fromHotelInput, hotelDateKey, isLive, MIN, shiftWindow, toHotelInput } from '@/lib/time'
 import type { Priority, Shift } from '@/lib/types'
 import { usePersona } from '@/shell/PortalShell'
 
@@ -22,18 +23,35 @@ const schema = z.object({
 type Form = z.infer<typeof schema>
 
 export function useLiveShift(now: number, shifts: Shift[]) {
-  return shifts.find((s) => Date.parse(s.start) <= now && now < Date.parse(s.end))
+  return shifts.find((s) => isLive(s, now))
 }
 
 export function AssignRooms() {
+  const { shifts, sops, rooms } = useDB()
+  const missing = !shifts.length ? 'shifts' : !rooms.length ? 'rooms' : !sops.some((s) => s.currentVersionId) ? 'a published SOP' : null
+  if (missing) return (
+    <div className="space-y-6">
+      <PageHeader eyebrow="Manager" title="Assign rooms" tagline="The right room, to the right person, on the exact standard." />
+      <Empty title={`Add ${missing} first`} body={missing === 'a published SOP' ? 'Work is always assigned against a released SOP version. Ask your author to release one.' : 'Your property admin sets these up in Platform foundation.'} />
+    </div>
+  )
+  return <AssignRoomsInner />
+}
+
+function AssignRoomsInner() {
   const { person: me } = usePersona('manager')
   const now = useNow()
-  const { shifts, people, rooms, tasks, sops, sopVersions, attendance, cover, connection, assignTask, verifyTask } = useDB()
+  const { shifts, people, rooms, tasks, sops, sopVersions, attendance, cover, connection, issues, ackEvents, assignTask, verifyTask, endUrgent, resolveIssue, acknowledge } = useDB()
   const live = useLiveShift(now, shifts)
-  const [shiftId, setShiftId] = useState(live?.id ?? shifts[0].id)
-  const shift = byId(shifts, shiftId)!
-  const sop = sops.find((s) => s.id === 'hk-reset')!
+  const [shiftId, setShiftId] = useState(live?.id ?? shifts[0]!.id)
+  const shift = byId(shifts, shiftId) ?? shifts[0]!
+  const win = shiftWindow(shift, now)
+  const publishedSops = sops.filter((s) => s.currentVersionId)
+  const [sopId, setSopId] = useState(publishedSops[0]!.id)
+  const sop = byId(publishedSops, sopId) ?? publishedSops[0]!
   const published = byId(sopVersions, sop.currentVersionId)!
+  const reviewed = ackEvents.some((a) => a.personId === me?.id && a.kind === 'sop' && a.refId === published.id && a.acknowledgedAt)
+  const [reviewing, setReviewing] = useState(false)
   const [roomQ, setRoomQ] = useState('')
   const [coverOpen, setCoverOpen] = useState(false)
   const [done, setDone] = useState<string | null>(null)
@@ -44,12 +62,12 @@ export function AssignRooms() {
     const q = roomQ.toLowerCase(); if (!q) return true
     return r.number.includes(q) || `floor ${r.floor}`.includes(q) || r.wing.toLowerCase().includes(q) || (byId(people, r.yesterdayAttendantId)?.name.toLowerCase().includes(q) ?? false)
   })
-  const deadline = Date.parse(shift.end)
+  const deadline = win.end
   const accepting = now < deadline
 
   const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<Form>({
     resolver: zodResolver(schema),
-    defaultValues: { personId: '', roomId: '', start: toHotelInput(Math.max(now, Date.parse(shift.start)) + 5 * MIN), priority: 'standard' },
+    defaultValues: { personId: '', roomId: '', start: toHotelInput(Math.max(now, win.start) + 5 * MIN), priority: 'standard' },
   })
   const startVal = watch('start')
   const finish = startVal ? toHotelInput(Date.parse(fromHotelInput(startVal)) + published.timeTargetMin * MIN) : ''
@@ -61,7 +79,9 @@ export function AssignRooms() {
     if (t) { setDone(`Room ${byId(rooms, f.roomId)?.number} assigned to ${byId(people, f.personId)?.name}.`); reset({ ...f, roomId: '' }) }
   }
 
-  const shiftTasks = tasks.filter((t) => t.shiftId === shiftId && hotelDateKey(t.start) === hotelDateKey(now))
+  const shiftTasks = tasks.filter((t) => t.shiftId === shiftId && Date.parse(t.start) < win.end && Date.parse(t.end) > win.start)
+  const openIssues = issues.filter((i) => i.status === 'open' && shiftTasks.some((t) => t.id === i.taskId))
+  const urgent = shiftTasks.filter((t) => t.priority === 'urgent' && t.status !== 'done')
   const exceptions = shiftTasks.filter((t) => t.status === 'awaiting_verification' || (t.status !== 'done' && Date.parse(t.end) < now))
     .sort((a, b) => Number(b.status !== 'awaiting_verification') - Number(a.status !== 'awaiting_verification'))
   const pendingCover = cover.filter((c) => c.status === 'pending')
@@ -75,7 +95,7 @@ export function AssignRooms() {
           <button key={s.id} onClick={() => setShiftId(s.id)} aria-pressed={s.id === shiftId}
             className={clsx('card p-4 text-left transition', s.id === shiftId ? 'border-gold-500/60 shadow-ring' : 'hover:border-white/20')}>
             <div className="flex items-center justify-between"><div className="font-semibold text-white">{s.name} shift</div>{s.id === live?.id && <Pill tone="ok">Live now</Pill>}</div>
-            <div className="mt-1 text-sm text-sage-300">{fTime(s.start)} – {fTime(s.end)}</div>
+            <div className="mt-1 text-sm text-sage-300">{s.start} – {s.end}</div>
             <div className="text-xs text-sage-300">{s.memberIds.length} rostered · {s.staffTarget} staff target</div>
           </button>
         ))}
@@ -109,9 +129,17 @@ export function AssignRooms() {
 
           <Section id="assign" title="Assign a room">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-forest-950/40 p-4">
-              <div><div className="text-xs text-sage-300">Published SOP</div><div className="font-semibold text-white">{published.code} · Version {published.version} · {published.title}</div></div>
-              <Pill tone="ok"><CheckCircle2 size={12} /> You reviewed this exact version</Pill>
+              <label className="min-w-0 flex-1"><span className="text-xs text-sage-300">Published SOP</span>
+                <select className="input mt-1" value={sop.id} onChange={(e) => setSopId(e.target.value)}>
+                  {publishedSops.map((x) => { const v = byId(sopVersions, x.currentVersionId)!; return <option key={x.id} value={x.id}>{v.code} · Version {v.version} · {v.title}</option> })}
+                </select></label>
+              {reviewed ? <Pill tone="ok"><CheckCircle2 size={12} /> You reviewed this exact version</Pill>
+                : <Button size="sm" variant="light" type="button" onClick={() => setReviewing(true)}>Review version {published.version}</Button>}
             </div>
+            <Drawer open={reviewing} onClose={() => setReviewing(false)} title={`${published.code} · ${published.version}`}>
+              <SopSteps steps={published.steps} version={published.version} interactive={false} />
+              <Button variant="gold" className="mt-4 w-full" onClick={() => { acknowledge(me!.id, 'sop', published.id); setReviewing(false) }}>I've reviewed this exact version</Button>
+            </Drawer>
             <p className="mb-5 text-sm text-sage-300">{accepting
               ? `This shift is accepting assignments now. Set a due time before ${fDateTime(deadline)}, hotel time.`
               : 'This shift has closed for assignments.'}</p>
@@ -154,7 +182,8 @@ export function AssignRooms() {
                 <select className="input" {...register('priority')}>{(['standard', 'high', 'urgent'] as Priority[]).map((p) => <option key={p} value={p}>{priorityLabel[p]}</option>)}</select>
               </label>
               <div className="flex items-center gap-4">
-                <Button type="submit" variant="gold" disabled={!accepting || !!lateFinish}>Assign room</Button>
+                <Button type="submit" variant="gold" disabled={!accepting || !!lateFinish || !reviewed}>Assign room</Button>
+                {!reviewed && <span className="text-xs text-amber">Review this SOP version before assigning it.</span>}
                 <AnimatePresence>{done && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm text-ok">{done}</motion.span>}</AnimatePresence>
               </div>
             </form>
@@ -169,7 +198,7 @@ export function AssignRooms() {
                     <div className="w-36 shrink-0 truncate text-sm text-white">{p.name}</div>
                     <div className="relative h-8 flex-1 rounded-lg bg-forest-950/50">
                       {pt.map((t) => {
-                        const s = Date.parse(shift.start), e = Date.parse(shift.end)
+                        const s = win.start, e = win.end
                         const l = ((Date.parse(t.start) - s) / (e - s)) * 100, w = ((Date.parse(t.end) - Date.parse(t.start)) / (e - s)) * 100
                         return <div key={t.id} title={`Room ${byId(rooms, t.roomId)?.number} · ${fTime(t.start)}`} style={{ left: `${Math.max(0, l)}%`, width: `${Math.max(2, w)}%` }}
                           className={clsx('absolute inset-y-1 rounded px-1 text-[10px] font-bold leading-6 text-forest-950', t.status === 'done' ? 'bg-ok/80' : t.status === 'awaiting_verification' ? 'bg-amber' : 'bg-gold-500')}>{byId(rooms, t.roomId)?.number}</div>
@@ -186,7 +215,18 @@ export function AssignRooms() {
           <div className="card sticky top-6 p-5">
             <h2 className="text-lg font-semibold text-white">Shift decisions now</h2>
             <p className="mt-1 text-sm text-sage-300">Blocked work appears first. Independent checks stay visible for a clean handoff.</p>
-            {exceptions.length === 0 ? <p className="mt-4 rounded-xl bg-forest-950/40 p-4 text-sm text-sage-200">No exception needs this shift right now.</p> : (
+            {openIssues.map((i) => (
+              <div key={i.id} className="mt-3 rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm">
+                <div className="flex items-center justify-between"><b className="text-white">Issue · Room {byId(rooms, shiftTasks.find((t) => t.id === i.taskId)?.roomId)?.number}</b><Pill tone="danger">Blocked</Pill></div>
+                <p className="mt-1 text-sage-200">{i.text}</p><div className="text-xs text-sage-300">{byId(people, i.personId)?.name} · {fTime(i.at)}</div>
+                <Button size="sm" variant="primary" className="mt-2" onClick={() => resolveIssue(i.id)}>Mark resolved</Button>
+              </div>))}
+            {urgent.map((t) => (
+              <div key={t.id} className="mt-3 rounded-xl bg-forest-950/40 p-3 text-sm">
+                <div className="flex items-center justify-between"><b className="text-white">Room {byId(rooms, t.roomId)?.number}</b><Pill tone="danger">Urgent</Pill></div>
+                <Button size="sm" variant="ghost" className="mt-2" onClick={() => endUrgent(t.id, Date.parse(t.end) < now ? "It's been pending for too long" : 'No longer urgent')}>End urgent priority</Button>
+              </div>))}
+            {exceptions.length === 0 && !openIssues.length && !urgent.length ? <p className="mt-4 rounded-xl bg-forest-950/40 p-4 text-sm text-sage-200">No exception needs this shift right now.</p> : (
               <ul className="mt-4 space-y-2">
                 {exceptions.map((t) => (
                   <li key={t.id} className="rounded-xl bg-forest-950/40 p-3 text-sm">

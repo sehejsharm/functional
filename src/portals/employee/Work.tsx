@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Button, Empty, Pill, Section, ShiftEventInterstitial, Skeleton, Tabs } from '@/components/ui'
 import { byId, priorityLabel, useDB } from '@/lib/db'
 import { useFirstLoad, useNow } from '@/lib/hooks'
-import { fDate, fLongDate, fTime, hotelDateKey, minutesBetween } from '@/lib/time'
+import { fDate, fLongDate, fTime, hotelDateKey, isLive, minutesBetween, shiftWindow } from '@/lib/time'
 import type { Task } from '@/lib/types'
 import { usePersona } from '@/shell/PortalShell'
 
@@ -14,12 +14,14 @@ export function useMyTasks(personId?: string) {
   const shifts = useDB((s) => s.shifts)
   const now = useNow()
   return useMemo(() => {
-    const live = shifts.find((s) => Date.parse(s.start) <= now && now < Date.parse(s.end) && s.memberIds.includes(personId ?? '')) ??
+    const live = shifts.find((s) => isLive(s, now) && s.memberIds.includes(personId ?? '')) ??
       shifts.find((s) => s.memberIds.includes(personId ?? ''))
-    const mine = tasks.filter((t) => t.personId === personId && t.shiftId === live?.id && hotelDateKey(t.start) === hotelDateKey(now))
+    const win = live ? shiftWindow(live, now) : null
+    // Today's work: every job of mine in the current shift instance, plus anything still open from earlier.
+    const mine = tasks.filter((t) => t.personId === personId && ((win && Date.parse(t.start) >= win.start && Date.parse(t.start) < win.end) || (t.status !== 'done' && hotelDateKey(t.start) <= hotelDateKey(now))))
       .sort((a, b) => a.start.localeCompare(b.start))
     const open = mine.filter((t) => t.status !== 'done')
-    return { shift: live, all: mine, open, next: open[0], upNext: open.slice(1), now }
+    return { shift: live, win, all: mine, open, next: open[0], upNext: open.slice(1), now }
   }, [tasks, shifts, personId, now])
 }
 
@@ -27,9 +29,9 @@ export const isGated = (t: Task, now: number) => t.status === 'scheduled' && now
 
 export function EmployeeWork() {
   const { person } = usePersona('employee')
-  const { shift, all, next, upNext, now } = useMyTasks(person?.id)
+  const { shift, win, all, next, upNext, now } = useMyTasks(person?.id)
   const conn = useDB((s) => s.connection)
-  const setConnection = useDB((s) => s.setConnection)
+  const retryConnection = useDB((s) => s.retryConnection)
   const checkIn = useDB((s) => s.checkIn)
   const attendance = useDB((s) => s.attendance.find((a) => a.personId === person?.id && a.date === hotelDateKey(now)))
   const urgentEnded = useDB((s) => s.tasks.find((t) => t.personId === person?.id && t.urgentEnded && !t.urgentEnded.seen))
@@ -41,8 +43,8 @@ export function EmployeeWork() {
   const loading = useFirstLoad()
 
   if (!person) return null
-  const start = shift ? Date.parse(shift.start) : now
-  const end = shift ? Date.parse(shift.end) : now
+  const start = win?.start ?? now
+  const end = win?.end ?? now
   const pct = Math.max(0, Math.min(100, ((now - start) / (end - start)) * 100))
   const offline = conn.hotel === 'offline'
 
@@ -70,9 +72,9 @@ export function EmployeeWork() {
           <motion.div key="ci" layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
             className="rounded-card border border-amber/40 bg-amber/10 p-4">
             <div className="flex items-center gap-2 font-semibold text-amber"><AlertTriangle size={16} /> Check-in needs attention</div>
-            <p className="mt-1 text-sm text-sage-200">The server could not confirm your check-in. It is saved on this phone.</p>
+            <p className="mt-1 text-sm text-sage-200">The server has not confirmed your check-in yet. It is saved on this phone and will be sent automatically.</p>
             <div className="mt-3 flex items-center gap-4">
-              <Button size="sm" variant="primary" disabled={offline} onClick={() => checkIn(person.id)}><RefreshCw size={14} /> Refresh check-in</Button>
+              <Button size="sm" variant="primary" disabled={offline} onClick={retryConnection}><RefreshCw size={14} /> Refresh check-in</Button>
               <Link to="/employee/me" className="text-sm text-gold-400 hover:underline">View check-in log</Link>
             </div>
           </motion.div>
@@ -80,16 +82,16 @@ export function EmployeeWork() {
         {offline && (
           <motion.div key="hs" layout initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="card p-4">
             <div className="flex items-center gap-2 font-semibold text-white"><WifiOff size={16} /> Hotel system is offline</div>
-            <p className="mt-1 text-sm text-sage-300">Saved hotel-system details stay hidden until the server confirms this signed-in account.</p>
-            <Button size="sm" variant="light" className="mt-3" onClick={() => setConnection({ hotel: navigator.onLine ? 'online' : 'offline' })}>Try again</Button>
+            <p className="mt-1 text-sm text-sage-300">Keep working from what is on this phone. Ticks and check-ins are saved here and sync in order when the hotel system answers.</p>
+            <Button size="sm" variant="light" className="mt-3" onClick={retryConnection}>Try again</Button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {loading ? (<><Skeleton className="h-36" /><Skeleton className="h-64" /></>) : offline ? null : view === 'current' ? (
+      {loading ? (<><Skeleton className="h-36" /><Skeleton className="h-64" /></>) : view === 'current' ? (
         <>
           <Section title={<span>Today <span className="ml-2 hidden text-sm font-normal text-sage-300 sm:inline">{fLongDate(now)}</span></span>}
-            right={shift && <span className="text-sm text-sage-300">{shift.name} · {fTime(shift.start)}–{fTime(shift.end)}</span>}>
+            right={shift && <span className="text-sm text-sage-300">{shift.name} · {fTime(start)}–{fTime(end)}</span>}>
             <div className="mb-1 flex justify-between text-xs text-sage-300"><span>{fTime(start)}</span><span className="text-gold-400">Now {fTime(now)}</span><span>{fTime(end)}</span></div>
             <div className="h-2.5 overflow-hidden rounded-pill bg-white/10" role="progressbar" aria-valuenow={Math.round(pct)} aria-label="Shift progress">
               <motion.div className="h-full rounded-pill bg-gradient-to-r from-forest-600 to-ok" initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.8 }} />

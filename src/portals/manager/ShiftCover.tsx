@@ -3,7 +3,7 @@ import { Gauge } from '@/components/Charts'
 import { Avatar, Button, Count, Empty, PageHeader, Pill, SearchBox, Section, Tabs } from '@/components/ui'
 import { byId, useDB } from '@/lib/db'
 import { useNow } from '@/lib/hooks'
-import { fDate, hotelDateKey } from '@/lib/time'
+import { fDate, hotelDateKey, hotelMidnight, shiftWindowOn } from '@/lib/time'
 import type { CoverKind } from '@/lib/types'
 import { useLiveShift } from './AssignRooms'
 
@@ -54,18 +54,21 @@ function Backup() {
   const now = useNow()
   const { shifts, people, attendance, approveBackup, tasks } = useDB()
   const live = useLiveShift(now, shifts)
-  const [shiftId, setShiftId] = useState(live?.id ?? shifts[0].id)
+  const [shiftId, setShiftId] = useState(live?.id ?? shifts[0]?.id ?? '')
   const [date, setDate] = useState(hotelDateKey(now))
   const [needQ, setNeedQ] = useState(''); const [backQ, setBackQ] = useState('')
   const [needId, setNeedId] = useState(''); const [backupId, setBackupId] = useState('')
   const [msg, setMsg] = useState('')
-  const shift = byId(shifts, shiftId)!
+  const shift = byId(shifts, shiftId)
+  if (!shift) return <Empty title="No shifts yet" body="Your property admin adds shifts in Platform foundation." />
+  const dayStart = hotelMidnight(Date.parse(`${date}T12:00:00Z`))
+  const w = shiftWindowOn(shift, dayStart)
   const confirmed = shift.memberIds.filter((id) => attendance.some((a) => a.personId === id && a.date === date)).length
   const need = byId(people, needId)
   // Eligible = same job role, not already on this shift, not working an overlapping shift.
   const eligible = (pid: string) => {
     const p = byId(people, pid)
-    return !!p && !!need && p.jobRoleId === need.jobRoleId && !shift.memberIds.includes(pid) && !shifts.some((s) => s.id !== shiftId && s.memberIds.includes(pid) && s.start < shift.end && shift.start < s.end)
+    return !!p && !!need && p.jobRoleId === need.jobRoleId && !shift.memberIds.includes(pid) && !shifts.some((s) => { if (s.id === shiftId || !s.memberIds.includes(pid)) return false; const o = shiftWindowOn(s, dayStart); return o.start < w.end && w.start < o.end })
   }
   const match = (q: string) => (p: { name: string }) => p.name.toLowerCase().includes(q.toLowerCase())
   const approve = () => {

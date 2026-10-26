@@ -4,7 +4,7 @@ import { PageHeader, Pill, Section } from '@/components/ui'
 import { stats } from '@/lib/analytics'
 import { byId, useDB } from '@/lib/db'
 import { useNow } from '@/lib/hooks'
-import { fDateTime, fTime, hotelDateKey } from '@/lib/time'
+import { fDateTime, hotelDateKey, isLive } from '@/lib/time'
 
 /** Lead operations: property-wide, multi-shift views above the single-shift Assign rooms. */
 export function PropertyBoard() {
@@ -17,9 +17,9 @@ export function PropertyBoard() {
       <div className="grid gap-4 lg:grid-cols-3">
         {shifts.map((s) => {
           const ts = today.filter((t) => t.shiftId === s.id); const st = stats(ts, sopVersions, now)
-          const live = Date.parse(s.start) <= now && now < Date.parse(s.end)
+          const live = isLive(s, now)
           return (
-            <Section key={s.id} title={`${s.name} · ${fTime(s.start)}–${fTime(s.end)}`} right={live && <Pill tone="ok">Live</Pill>}>
+            <Section key={s.id} title={`${s.name} · ${s.start}–${s.end}`} right={live && <Pill tone="ok">Live</Pill>}>
               <dl className="grid grid-cols-2 gap-2 text-sm">
                 <dt className="text-sage-300">Staff</dt><dd>{s.memberIds.length}/{s.staffTarget}</dd>
                 <dt className="text-sage-300">Rooms</dt><dd>{ts.length} ({ts.filter((t) => t.status === 'done').length} done)</dd>

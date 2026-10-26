@@ -29,7 +29,7 @@ export function EmployeeSops() {
       <PageHeader eyebrow="Manager" title="Employee SOPs" tagline="Know the standard behind every task."
         right={<Pill tone="light">{me?.name} · Manager review · SOPs stay read-only.</Pill>} />
       <div className="flex flex-wrap items-center gap-3">
-        <span className="eyebrow">Demo catalogues:</span>
+        <span className="eyebrow">Catalogues:</span>
         <Tabs value={cat} onChange={setCat} items={[{ id: 'pilot', label: 'Pilot SOPs' }, { id: 'whole', label: `Whole-hotel sample · ${pubIn.length} jobs · ${staff.length} people` }]} />
       </div>
       <div className="card">

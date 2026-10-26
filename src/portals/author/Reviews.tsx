@@ -50,15 +50,12 @@ function diffSteps(base: SopStep[], next: SopStep[]): Diff[] {
   return out
 }
 
-// Demo reviewers. In production these are the signed-in reviewers' own accounts.
-const REVIEWERS = ['marco', 'leah']
-
 export function VersionReview() {
   const { id } = useParams()
   const { person } = usePersona('author')
   const { sopVersions, sops, people, review, release } = useDB()
   const v = byId(sopVersions, id)
-  const [reviewerId, setReviewerId] = useState(REVIEWERS[0])
+  const reviewerId = person?.id ?? ''
   const [comment, setComment] = useState('')
   const [stepComment, setStepComment] = useState<Record<string, string>>({})
   const [released, setReleased] = useState<string | null>(null)
@@ -108,17 +105,13 @@ export function VersionReview() {
             <Pill tone={r.decision === 'approve' ? 'ok' : r.decision === 'reject' ? 'danger' : 'warn'}>{r.decision.replace('_', ' ')}</Pill><span className="text-sage-300">{r.comment}</span></li>))}
           {!v.reviews.some((r) => !r.stepId) && <li className="text-sm text-sage-300">No decisions yet.</li>}</ul>
         {open && <>
-          <div className="flex flex-wrap items-end gap-3">
-            <label><span className="label">Review as (demo)</span><select className="input" value={reviewerId} onChange={(e) => setReviewerId(e.target.value)}>
-              {[...REVIEWERS, v.authorId].map((rid) => <option key={rid} value={rid}>{byId(people, rid)?.name}{rid === v.authorId ? ' (author)' : ''}</option>)}</select></label>
-            <input className="input max-w-md flex-1" placeholder="Comment" value={comment} onChange={(e) => setComment(e.target.value)} />
-          </div>
-          {self ? <p className="mt-3 text-sm text-amber">Authors cannot review their own version. Two independent approvals are required.</p> : (
+          {self ? <p className="text-sm text-amber">This is your version. Two other authors must review it independently.</p> : (<>
+            <input className="input max-w-xl" placeholder="Comment (optional)" value={comment} onChange={(e) => setComment(e.target.value)} />
             <div className="mt-3 flex gap-2">
               <Button variant="gold" onClick={() => { review(v.id, { reviewerId, decision: 'approve', comment }); setComment('') }}>Approve</Button>
               <Button variant="ghost" onClick={() => { review(v.id, { reviewerId, decision: 'request_changes', comment }); setComment('') }}>Request changes</Button>
               <Button variant="danger" onClick={() => { review(v.id, { reviewerId, decision: 'reject', comment }); setComment('') }}>Reject</Button>
-            </div>)}
+            </div></>)}
         </>}
         {v.status === 'changes_requested' && v.authorId === person?.id && <Link to={`/author/edit/${v.id}`} className="mt-4 inline-block text-sm text-gold-400">Edit and resubmit →</Link>}
       </Section>

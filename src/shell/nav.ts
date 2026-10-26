@@ -25,6 +25,7 @@ export const NAV: Record<Portal, NavItem[]> = {
     { to: '/manager/guided-or-standard', label: 'Guided or Standard', icon: ToggleLeft, group: 'More' },
     { to: '/manager/join-requests', label: 'Join requests', icon: UserPlus, count: 'join', group: 'More' },
     { to: '/manager/sop-policy', label: 'Hotel SOP policy', icon: BookOpen, group: 'More' },
+    { to: '/manager/platform', label: 'Platform foundation', icon: Settings2, need: 'admin', group: 'More' },
     { to: '/manager/lead/board', label: 'Property board', icon: LayoutGrid, need: 'senior', group: 'Lead operations' },
     { to: '/manager/lead/planner', label: 'Shift planner', icon: CalendarRange, need: 'senior', group: 'Lead operations' },
     { to: '/manager/lead/pulse', label: 'Operations pulse', icon: Activity, need: 'senior', group: 'Lead operations' },

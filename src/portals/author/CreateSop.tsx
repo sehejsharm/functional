@@ -36,7 +36,7 @@ export function CreateSop() {
   const { id } = useParams()
   const nav = useNavigate()
   const { person } = usePersona('author')
-  const { jobRoles, sopVersions, saveDraft, newDraftFrom, submitForReview } = useDB()
+  const { jobRoles, sopVersions, property, saveDraft, newDraftFrom, submitForReview } = useDB()
   const existing = byId(sopVersions, id)
   const [draft, setDraft] = useState<SopVersion | null>(existing ?? null)
   const [preview, setPreview] = useState(false)
@@ -44,7 +44,7 @@ export function CreateSop() {
   const [iconFor, setIconFor] = useState<number | null>(null)
   const base = byId(sopVersions, draft?.baseVersionId)
 
-  const blank = (): Form => ({ title: '', code: '', jobRoleId: 'room-attendant', language: 'English', timeTargetMin: 15, tags: '',
+  const blank = (): Form => ({ title: '', code: '', jobRoleId: jobRoles[0]?.id ?? '', language: 'English', timeTargetMin: property.defaultTimeTargetMin, tags: '',
     steps: [{ id: `st-${Date.now()}`, icon: 'check', instruction: '', guestCare: '', requireCheck: false, allowPhoto: false }] })
   const { register, control, handleSubmit, watch, reset, formState: { errors, isDirty } } = useForm<Form>({
     resolver: zodResolver(schema), defaultValues: existing ? toForm(existing) : blank(),
@@ -70,7 +70,7 @@ export function CreateSop() {
     return saved
   }
   const onSave = handleSubmit(persist)
-  const onSubmitReview = handleSubmit((f) => { const s = persist(f); submitForReview(s.id); nav('/author/reviews') })
+  const onSubmitReview = handleSubmit((f) => { const s = persist(f); if (submitForReview(s.id)) nav('/author/reviews') })
   const stage = !draft || draft.status === 'draft' || draft.status === 'changes_requested' ? 0 : draft.status === 'in_review' ? 1 : 2
   const proposed = draft ? proposeVersion({ ...draft, ...values, tags: [] } as SopVersion, base) : { label: '1.0', structural: true }
 
