@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AnimatePresence, motion } from 'framer-motion'
 import clsx from 'clsx'
-import { ArrowDown, ArrowUp, Eye, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Eye, FileUp, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { SopSteps } from '@/components/SopSteps'
 import { Button, Drawer, PageHeader, STEP_ICONS, ShiftEventInterstitial, StepIcon, Tabs } from '@/components/ui'
 import { byId, proposeVersion, useDB } from '@/lib/db'
+import { parseSop, readPdfLines, textToLines, type ImportedSop } from '@/lib/sopImport'
 import type { SopVersion } from '@/lib/types'
 import { usePersona } from '@/shell/PortalShell'
 
@@ -60,6 +61,23 @@ export function CreateSop() {
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
   const { fields, append, remove, move, update } = useFieldArray({ control, name: 'steps' })
   const values = watch()
+  const [imported, setImported] = useState<ImportedSop | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
+  const onImport = async (file: File | undefined) => {
+    if (!file) return
+    setImporting(true); setImportError(null)
+    try {
+      const lines = /\.pdf$/i.test(file.name) || file.type === 'application/pdf' ? await readPdfLines(file) : textToLines(await file.text())
+      const r = parseSop(lines, jobRoles, file.name)
+      if (!r.steps.length) throw new Error(r.warnings[0] ?? 'No steps found in this document.')
+      reset({ ...values, title: r.title, code: r.code, timeTargetMin: r.timeTargetMin, jobRoleId: r.jobRoleId ?? values.jobRoleId,
+        tags: r.tags.map((t) => `#${t}`).join(' '), steps: r.steps }, { keepDefaultValues: true })
+      setImported(r)
+    } catch (e) {
+      setImportError(e instanceof Error ? e.message : 'This file could not be read.')
+    } finally { setImporting(false) }
+  }
   const readOnly = !!draft && draft.status !== 'draft' && draft.status !== 'changes_requested'
 
   const persist = (f: Form): SopVersion => {
@@ -89,6 +107,24 @@ export function CreateSop() {
       </ol>
 
       <fieldset disabled={readOnly} className="space-y-6">
+        <section className="card p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><h2 className="text-lg font-semibold text-white">Start from a document</h2>
+              <p className="text-sm text-sage-300">Upload an SOP as a PDF or text file. It fills this form as a draft; nothing is saved or sent until you do.</p></div>
+            <label className={clsx('inline-flex cursor-pointer items-center gap-2 rounded-pill bg-gold-500 px-4 py-2 text-sm font-semibold text-forest-950', (readOnly || importing) && 'pointer-events-none opacity-50')}>
+              <FileUp size={16} /> {importing ? 'Reading…' : 'Upload SOP'}
+              <input type="file" accept=".pdf,.txt,.md,application/pdf,text/plain" className="sr-only" aria-label="Upload SOP document" onChange={(e) => { onImport(e.target.files?.[0]); e.target.value = '' }} />
+            </label>
+          </div>
+          {importError && <p className="mt-3 text-sm text-danger">{importError}</p>}
+          {imported && (
+            <div className="mt-3 rounded-xl bg-forest-950/40 p-3 text-sm text-sage-200">
+              Imported <b className="text-white">{imported.steps.length} steps</b> from {imported.source}
+              {' '}· {imported.steps.filter((x) => x.requireCheck).length} marked for a recorded check. Check every step, then save the draft.
+              {imported.warnings.map((w) => <div key={w} className="mt-1 text-amber">{w}</div>)}
+            </div>
+          )}
+        </section>
         <section className="card p-5">
           <h2 className="mb-4 text-lg font-semibold text-white">SOP essentials</h2>
           <div className="grid gap-4 md:grid-cols-2">

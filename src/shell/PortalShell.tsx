@@ -112,7 +112,23 @@ export function ConnectionChip() {
 function DemoTierPicker({ portal }: { portal: Portal }) {
   const demoTier = useSession((s) => s.demoTier)
   const setDemoTier = useSession((s) => s.setDemoTier)
-  if (portal === 'employee') return null
+  const demoEmployeeId = useSession((s) => s.demoEmployeeId)
+  const setDemoEmployee = useSession((s) => s.setDemoEmployee)
+  const grant = useGrants().find((g) => g.portal === 'employee')
+  const people = useDB((s) => s.people)
+  const roles = useDB((s) => s.jobRoles)
+  const shifts = useDB((s) => s.shifts)
+  if (portal === 'employee') {
+    const staff = people.filter((p) => shifts.some((s) => s.memberIds.includes(p.id)))
+    return (
+      <label className="block text-[11px] text-sage-300">
+        Demo · viewing as
+        <select className="input mt-1 !py-1.5 !text-xs" value={demoEmployeeId ?? grant?.personId ?? ''} onChange={(e) => setDemoEmployee(e.target.value === grant?.personId ? null : e.target.value)}>
+          {staff.map((p) => <option key={p.id} value={p.id}>{p.name} · {byId(roles, p.jobRoleId)?.name}</option>)}
+        </select>
+      </label>
+    )
+  }
   return (
     <label className="block text-[11px] text-sage-300">
       Demo access tier

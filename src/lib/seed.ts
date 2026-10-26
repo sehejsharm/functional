@@ -20,6 +20,8 @@ export function buildSeed(now = Date.now()) {
     { id: 'hk-supervisor', propertyId: P, name: 'Housekeeping supervisor', team: 'Housekeeping' },
     { id: 'front-desk', propertyId: P, name: 'Front desk colleague', team: 'Front office' },
     { id: 'public-area', propertyId: P, name: 'Public area attendant', team: 'Housekeeping' },
+    { id: 'bellman', propertyId: P, name: 'Bellman / Porter', team: 'Front office' },
+    { id: 'bell-captain', propertyId: P, name: 'Bell Captain', team: 'Front office' },
   ]
 
   const mk = (id: string, name: string, jobRoleId: string, title: string, catalogue: Person['catalogue'] = ['pilot', 'whole']): Person => ({
@@ -38,6 +40,9 @@ export function buildSeed(now = Date.now()) {
     mk('ishara', 'Ishara Gunawardena', 'front-desk', 'Front desk colleague', ['whole']),
     mk('omar', 'Omar Haddad', 'front-desk', 'Front desk colleague', ['whole']),
     mk('priya', 'Priya Nair', 'public-area', 'Public area attendant', ['whole']),
+    mk('arjun', 'Arjun Mehta', 'bellman', 'Bellman'),
+    mk('farah', 'Farah Sheikh', 'bellman', 'Bellman'),
+    mk('vikram', 'Vikram Rao', 'bell-captain', 'Bell Captain'),
     mk('marco', 'Marco Bianchi', 'hk-supervisor', 'Senior housekeeping manager'),
     mk('leah', 'Leah Cohen', 'hk-supervisor', 'Standards reviewer'),
   ]
@@ -92,8 +97,8 @@ export function buildSeed(now = Date.now()) {
   ]
 
   const shifts: Shift[] = [
-    { id: 'morning', propertyId: P, name: 'Morning', start: iso(mid + 6 * HOUR), end: iso(mid + 14 * HOUR), staffTarget: 2, team: 'Housekeeping', memberIds: ['maya', 'kasun'] },
-    { id: 'afternoon', propertyId: P, name: 'Afternoon', start: iso(mid + 14 * HOUR), end: iso(mid + 22 * HOUR), staffTarget: 2, team: 'Housekeeping', memberIds: ['dilani', 'ravi'] },
+    { id: 'morning', propertyId: P, name: 'Morning', start: iso(mid + 6 * HOUR), end: iso(mid + 14 * HOUR), staffTarget: 4, team: 'Housekeeping', memberIds: ['maya', 'kasun', 'arjun', 'vikram'] },
+    { id: 'afternoon', propertyId: P, name: 'Afternoon', start: iso(mid + 14 * HOUR), end: iso(mid + 22 * HOUR), staffTarget: 3, team: 'Housekeeping', memberIds: ['dilani', 'ravi', 'farah'] },
     { id: 'night', propertyId: P, name: 'Night', start: iso(mid + 22 * HOUR), end: iso(mid + 30 * HOUR), staffTarget: 1, team: 'Housekeeping', memberIds: ['nimal'] },
   ]
   // Maya always works the live shift in the demo so her Today view has something real.

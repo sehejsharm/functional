@@ -266,7 +266,7 @@ export const useDB = create<DB>()(
       }
     },
     {
-      name: 'mise-db-v1',
+      name: 'mise-db-v2',
       partialize: (s) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { connection: _c, ...rest } = s
@@ -281,7 +281,7 @@ if (useDB.getState().seededFor !== hotelDateKey()) useDB.getState().reset()
 
 // Cross-tab "real-time": another tab's write lands here without a reload.
 if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => { if (e.key === 'mise-db-v1') useDB.persist.rehydrate() })
+  window.addEventListener('storage', (e) => { if (e.key === 'mise-db-v2') useDB.persist.rehydrate() })
   window.addEventListener('online', () => useDB.getState().setConnection({ hotel: 'online' }))
   window.addEventListener('offline', () => useDB.getState().setConnection({ hotel: 'offline' }))
 }

@@ -14,6 +14,8 @@ interface Session {
   propertyId: string | null
   /** Demo-only tier override so reviewers can preview gated screens. */
   demoTier: Tier | null
+  /** Demo-only: which staff member the Employee portal shows, so any role's work can be tried. */
+  demoEmployeeId: string | null
   demoPaused: boolean
   switching: string | null
   signIn: (passphrase: string) => Portal | null
@@ -21,13 +23,14 @@ interface Session {
   setPortal: (p: Portal) => void
   setSwitching: (name: string | null) => void
   setDemoTier: (t: Tier | null) => void
+  setDemoEmployee: (id: string | null) => void
   toggleDemoPaused: () => void
 }
 
 export const useSession = create<Session>()(
   persist(
     (set) => ({
-      accountId: null, portal: null, propertyId: null, demoTier: null, demoPaused: false, switching: null,
+      accountId: null, portal: null, propertyId: null, demoTier: null, demoEmployeeId: null, demoPaused: false, switching: null,
       signIn: (pass) => {
         // Demo: one shared passphrase. Production swaps this for Firebase Auth + custom claims.
         if (pass.trim().toLowerCase() !== PASSPHRASE.toLowerCase()) return null
@@ -35,10 +38,11 @@ export const useSession = create<Session>()(
         set({ accountId: acct.id, portal: acct.primary, propertyId: acct.grants[0].propertyId })
         return acct.primary
       },
-      signOut: () => set({ accountId: null, portal: null, demoTier: null }),
+      signOut: () => set({ accountId: null, portal: null, demoTier: null, demoEmployeeId: null }),
       setPortal: (portal) => set({ portal }),
       setSwitching: (switching) => set({ switching }),
       setDemoTier: (demoTier) => set({ demoTier }),
+      setDemoEmployee: (demoEmployeeId) => set({ demoEmployeeId }),
       toggleDemoPaused: () => set((s) => ({ demoPaused: !s.demoPaused })),
     }),
     { name: 'mise-session-v1', partialize: ({ switching: _s, ...rest }) => rest },
@@ -55,6 +59,9 @@ export function useGrants(): RoleGrant[] {
 export function useGrant(portal: Portal): RoleGrant | undefined {
   const grants = useGrants()
   const demoTier = useSession((s) => s.demoTier)
+  const demoEmployeeId = useSession((s) => s.demoEmployeeId)
   const g = grants.find((x) => x.portal === portal)
-  return g && demoTier ? { ...g, tier: demoTier } : g
+  if (!g) return g
+  if (portal === 'employee') return demoEmployeeId ? { ...g, personId: demoEmployeeId } : g
+  return demoTier ? { ...g, tier: demoTier } : g
 }
