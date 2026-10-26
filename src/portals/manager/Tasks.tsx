@@ -65,7 +65,7 @@ export function ManagerTasks() {
       <div className="min-w-0 max-w-[180px]"><div className="truncate text-sm text-ink">{r?.guestName ?? <span className="text-muted">No guest</span>}</div><OccupancyChip occ={r?.occupancy} /></div>) } },
     { key: 'staff', header: 'Staff', sort: (t) => L.name(t.personId), csv: (t) => L.name(t.personId), cell: (t) => <PersonCell person={L.person(t.personId)} size={26} /> },
     { key: 'sop', header: 'SOP', hideOnMobile: true, sort: (t) => L.version(t.sopVersionId)?.code, csv: (t) => { const v = L.version(t.sopVersionId); return `${v?.code} v${v?.version}` }, cell: (t) => { const v = L.version(t.sopVersionId); return (
-      <div className="min-w-0"><div className="text-sm font-medium text-ink">{v?.code}</div><div className="text-xs text-muted">v{v?.version} · {v?.timeTargetMin} min</div></div>) } },
+      <div className="min-w-0 whitespace-nowrap"><div className="text-sm font-medium text-ink">{v?.code}</div><div className="text-xs text-muted">v{v?.version}</div></div>) } },
     { key: 'window', header: 'Window', hideOnMobile: true, sort: (t) => t.start, csv: (t) => fWindow(t), cell: (t) => <span className="whitespace-nowrap text-sm tabular text-ink-2">{days > 1 && <span className="text-muted">{hotelDateKey(t.start).slice(5)} · </span>}{fWindow(t)}</span> },
     { key: 'status', header: 'Status', sort: (t) => ATTENTION[taskState(t, now).key], csv: (t) => taskState(t, now).label, cell: (t) => <TaskStatusBadge task={t} now={now} /> },
     { key: 'priority', header: 'Priority', hideOnMobile: true, sort: (t) => PRIORITY[t.priority].rank, csv: (t) => PRIORITY[t.priority].label, cell: (t) => <PriorityBadge priority={t.priority} hideStandard /> },

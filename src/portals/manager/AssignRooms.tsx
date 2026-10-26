@@ -225,7 +225,7 @@ function ShiftTimeline({ ctx }: { ctx: Ctx }) {
       <div className="overflow-x-auto p-5">
         <div className="min-w-[640px]">
           <div className="relative ml-36 mb-1 h-4 text-2xs text-muted">
-            {hours.map((h, i) => <span key={h} className="absolute -translate-x-1/2" style={{ left: `${(i / (hours.length - 1)) * 100}%` }}>{fTime(h).replace(':00', '')}</span>)}
+            {hours.map((h, i) => <span key={h} className={clsx('absolute whitespace-nowrap', i === 0 ? '' : i === hours.length - 1 ? '-translate-x-full' : '-translate-x-1/2')} style={{ left: `${(i / (hours.length - 1)) * 100}%` }}>{fTime(h).replace(':00', '').replace(/^0/, '')}</span>)}
           </div>
           <div className="space-y-1.5">
             {members.map((p) => (
@@ -234,10 +234,12 @@ function ShiftTimeline({ ctx }: { ctx: Ctx }) {
                 <div className="relative h-7 flex-1 rounded-md bg-surface-2 ring-1 ring-inset ring-line">
                   {nowPct > 0 && nowPct < 100 && <span className="absolute inset-y-0 w-px bg-danger/60" style={{ left: `${nowPct}%` }} aria-hidden />}
                   {ctx.shiftTasks.filter((t) => t.personId === p.id).map((t) => {
-                    const l = ((Date.parse(t.start) - s) / (e - s)) * 100, w = ((Date.parse(t.end) - Date.parse(t.start)) / (e - s)) * 100
+                    const l = Math.max(0, ((Date.parse(t.start) - s) / (e - s)) * 100), r = Math.min(100, ((Date.parse(t.end) - s) / (e - s)) * 100)
+                    if (r <= 0 || l >= 100) return null
+                    const w = r - l
                     return (
                       <Link key={t.id} to={`/manager/tasks?task=${t.id}`} title={`Room ${byId(rooms, t.roomId)?.number} · ${fTime(t.start)}–${fTime(t.end)} · ${t.status.replace('_', ' ')}`}
-                        style={{ left: `${Math.max(0, l)}%`, width: `${Math.max(2.5, w)}%` }}
+                        style={{ left: `${l}%`, width: `${Math.max(2.5, w)}%` }}
                         className={clsx('absolute inset-y-1 overflow-hidden rounded px-1 text-[10px] font-bold leading-5 tabular',
                           t.status === 'done' ? 'bg-ok/20 text-ok' : t.status === 'awaiting_verification' ? 'bg-amber/20 text-amber' : t.status === 'in_progress' ? 'bg-info/20 text-info' : 'bg-forest-100 text-forest-800')}>
                         {byId(rooms, t.roomId)?.number}

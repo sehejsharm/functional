@@ -76,7 +76,11 @@ export function taskTiming(t: Task, v: SopVersion | undefined, now = Date.now())
   return { elapsed, target, over: elapsed > target }
 }
 
-export const fWindow = (t: { start: string; end: string }) => `${fTime(t.start)} – ${fTime(t.end)}`
+/** "2:10 – 2:37 PM" (or "11:40 AM – 12:07 PM" across noon). */
+export function fWindow(t: { start: string; end: string }) {
+  const a = fTime(t.start).replace(/^0/, ''), b = fTime(t.end).replace(/^0/, '')
+  return a.slice(-2) === b.slice(-2) ? `${a.slice(0, -3)} – ${b}` : `${a} – ${b}`
+}
 export const fMinutes = (m: number) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`)
 export function fAge(iso: string, now = Date.now()) {
   const m = Math.max(0, Math.round((now - Date.parse(iso)) / MIN))
@@ -104,6 +108,17 @@ export function ackCompliance(db: Pick<DB, 'sops' | 'sopVersions' | 'ackEvents'>
   const acked = vs.filter((v) => db.ackEvents.some((a) => a.personId === person.id && a.kind === 'sop' && a.refId === v.id && a.acknowledgedAt)).length
   return { total: vs.length, acked, pct: vs.length ? pct(acked, vs.length) : null }
 }
+
+/** First-time verification pass rate: checked rooms that were never sent back. */
+export function verifyPass(tasks: Task[], audit: AuditEntry[]) {
+  const returned = new Set(audit.filter((a) => a.action === 'task.returned').map((a) => a.detail.split(':')[0]))
+  const checked = tasks.filter((t) => t.verifiedById || returned.has(t.id) || t.returned)
+  const passed = checked.filter((t) => t.verifiedById && !returned.has(t.id) && !t.returned).length
+  return { checked: checked.length, passed, pct: checked.length ? pct(passed, checked.length) : null }
+}
+
+/** "12 Oct" from a hotel date key. */
+export const dayLabel = (key: string) => new Date(`${key}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 
 /** Plain-language line for an audit entry ("verified room 305"). */
 export function describeAudit(a: AuditEntry, db: Pick<DB, 'tasks' | 'rooms' | 'people' | 'issues' | 'sopVersions' | 'notices' | 'shifts'>): { text: string; tone: Tone; to?: string } {

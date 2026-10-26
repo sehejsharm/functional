@@ -5,7 +5,7 @@ import {
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  Avatar, Badge, Button, Card, CardHeader, DataTable, EmptyState, PageHeader, ProgressBar, Section, StatCard, Switch, Tabs, Timeline, type Column, type Tone,
+  Avatar, Badge, Button, Card, CardHeader, DataTable, EmptyState, PageHeader, Section, StatCard, Switch, Tabs, Timeline, type Column, type Tone,
 } from '@/components/ui'
 import { byDay, stats } from '@/lib/analytics'
 import { byId, useDB } from '@/lib/db'
@@ -15,7 +15,7 @@ import { confirm, toast } from '@/lib/toast'
 import type { JoinRequest, Person, Task } from '@/lib/types'
 import { relTime, usePersona } from '@/shell/PortalShell'
 import { decideJoinAs, setModeForTasks } from './actions'
-import { FilterSelect, MiniRoom, OccupancyLegend, ShiftSwitcher, TaskMarkLegend, useLookups } from './components'
+import { FilterSelect, Meter, MiniRoom, OccupancyLegend, ShiftSwitcher, TaskMarkLegend, useLookups } from './components'
 import { COVER_KIND, DAY, SEVERITY, describeAudit, fAge, firstName, isOpen, isOverdue, liveShiftAt, pct } from './model'
 import { ReassignDialog, TaskDrawer, useTaskActions } from './TaskDrawer'
 
@@ -171,14 +171,14 @@ export function ManagerOverview() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
                           <Link to={`/manager/staff/${p.id}`} className="truncate text-sm font-medium text-ink hover:underline">{p.name}</Link>
-                          <span className="shrink-0 text-xs tabular text-ink-2"><b className="text-ink">{d}</b>/{mine.length} rooms</span>
+                          <span className="shrink-0 text-xs tabular text-ink-2"><b className="text-ink">{d}</b>/{mine.length} tasks</span>
                         </div>
-                        <div className="mt-1.5"><ProgressBar size="sm" value={d} max={Math.max(1, mine.length)} tone={mine.length && d === mine.length ? 'success' : 'brand'} label={`${p.name} rooms done`} /></div>
+                        <Meter className="mt-1.5" value={d} max={Math.max(1, mine.length)} tone={mine.length && d === mine.length ? 'success' : 'brand'} label={`${p.name}: ${d} of ${mine.length} tasks done`} />
                         <div className="mt-1.5 truncate text-xs text-muted">
                           {cur ? <button className="text-info hover:underline" onClick={() => setDrawer(cur.id)}>In room {L.room(cur.roomId)?.number}{cur.startedAt ? ` · ${fAge(cur.startedAt, now)}` : ''}</button>
                             : wait ? <button className="text-amber hover:underline" onClick={() => setDrawer(wait.id)}>Room {L.room(wait.roomId)?.number} waiting for check</button>
                               : next ? <>Next: room {L.room(next.roomId)?.number} at {fTime(next.start)}</>
-                                : mine.length ? 'All rooms finished' : <Link to={`/manager/assign-rooms?staff=${p.id}`} className="link">No rooms yet · assign</Link>}
+                                : mine.length ? 'All tasks finished' : <Link to={`/manager/assign-rooms?staff=${p.id}`} className="link">Nothing assigned · assign work</Link>}
                           {!checkedIn && <span className="ml-2 text-amber">· not checked in</span>}
                         </div>
                       </div>

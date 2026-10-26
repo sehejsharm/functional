@@ -15,7 +15,7 @@ export function TaskStatusBadge({ task, now }: { task: Task; now?: number }) {
 }
 
 export function PriorityBadge({ priority, hideStandard }: { priority: Priority; hideStandard?: boolean }) {
-  if (hideStandard && priority === 'standard') return <span className="text-xs text-muted">Standard</span>
+  if (hideStandard && priority === 'standard') return <span className="text-xs text-muted" aria-label="Standard priority">—</span>
   const p = PRIORITY[priority]
   return <Badge tone={p.tone}>{priority === 'urgent' && <AlertTriangle size={11} aria-hidden />}{p.label}</Badge>
 }
@@ -183,6 +183,16 @@ export function TaskMarkLegend() {
         <li key={l} className="flex items-center gap-1.5"><span className={clsx('h-2 w-2 rounded-full', c)} aria-hidden />{l}</li>
       ))}
     </ul>
+  )
+}
+
+/** Slim progress meter with an accessible name but no visible label (ProgressBar always prints its label). */
+export function Meter({ value, max, tone = 'brand', label, className }: { value: number; max: number; tone?: 'brand' | 'success' | 'warning' | 'danger' | 'gold'; label: string; className?: string }) {
+  const p = max ? Math.max(0, Math.min(100, (value / max) * 100)) : 0
+  return (
+    <div className={clsx('h-1.5 w-full overflow-hidden rounded-pill bg-ink/[0.07]', className)} role="progressbar" aria-label={label} aria-valuenow={Math.round(p)} aria-valuemin={0} aria-valuemax={100}>
+      <div className={clsx('h-full rounded-pill transition-[width] duration-500', { brand: 'bg-forest-700', success: 'bg-ok', warning: 'bg-amber', danger: 'bg-danger', gold: 'bg-gold-500' }[tone])} style={{ width: `${p}%` }} />
+    </div>
   )
 }
 
