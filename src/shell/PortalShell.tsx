@@ -63,7 +63,7 @@ export function PortalSwitcher({ current }: { current: Portal }) {
       {(['employee', 'manager', 'author'] as Portal[]).filter((p) => grants.some((g) => g.portal === p)).map((p) => (
         <button key={p} role="tab" aria-selected={p === current} onClick={() => go(p)}
           className={clsx('relative rounded-[7px] px-2 py-1.5 text-xs font-semibold transition-colors', p === current ? 'text-forest-950' : 'text-sage-300 hover:text-white')}>
-          {p === current && <motion.span layoutId="portal-pill" className="absolute inset-0 rounded-[7px] bg-gold-500" transition={{ type: 'spring', bounce: 0.15, duration: 0.35 }} />}
+          {p === current && <span aria-hidden className="absolute inset-0 rounded-[7px] bg-gold-500" />}
           <span className="relative">{PORTAL_LABEL[p]}</span>
         </button>
       ))}
@@ -186,7 +186,7 @@ function NavRow({ item, locked, count, onNavigate }: { item: NavItem; locked: bo
         className={({ isActive }) => clsx('group relative flex items-center gap-3 rounded-cell px-2.5 py-[7px] text-[13px] font-medium transition-colors',
           isActive ? 'bg-white/[0.09] text-white' : 'text-sage-300 hover:bg-white/[0.05] hover:text-white')}>
         {({ isActive }) => (<>
-          {isActive && <motion.span layoutId="nav-active" className="absolute inset-y-1.5 -left-3 w-[3px] rounded-r-pill bg-gold-500" />}
+          {isActive && <span aria-hidden className="absolute inset-y-1.5 -left-3 w-[3px] rounded-r-pill bg-gold-500" />}
           <I size={16} className={clsx('shrink-0', isActive ? 'text-gold-400' : 'text-sage-300/80 group-hover:text-white')} />
           <span className="flex-1 truncate">{item.label}</span>
           {locked && <LockIcon size={12} className="text-sage-300/60" aria-label="Locked" />}
@@ -371,7 +371,7 @@ function BottomTabs({ portal }: { portal: Portal }) {
           <li key={i.to} className="flex-1">
             <NavLink to={i.to} end={i.to === `/${portal}`} className={({ isActive }) => clsx('relative flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold', isActive ? 'text-forest-900' : 'text-muted')}>
               {({ isActive }) => (<>
-                {isActive && <motion.span layoutId="tab-active" className="absolute top-0 h-0.5 w-10 rounded-pill bg-forest-900" />}
+                {isActive && <span aria-hidden className="absolute top-0 h-0.5 w-10 rounded-pill bg-forest-900" />}
                 <span className="relative"><i.icon size={21} />{i.count && counts[i.count] > 0 && <span className="absolute -right-2 -top-1 grid h-4 min-w-4 place-items-center rounded-pill bg-danger px-1 text-[9px] font-bold text-white">{counts[i.count]}</span>}</span>
                 {i.label}
               </>)}

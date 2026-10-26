@@ -159,7 +159,7 @@ export function Toaster() {
   const { toasts, dismiss } = useToasts()
   return (
     <Portal>
-      <div aria-live="polite" className="pointer-events-none fixed bottom-4 right-4 z-[80] flex w-[min(380px,calc(100vw-2rem))] flex-col gap-2 max-lg:bottom-24">
+      <div aria-live="polite" className="pointer-events-none fixed right-4 z-[80] flex w-[min(380px,calc(100vw-2rem))] flex-col gap-2 max-lg:top-16 lg:bottom-4">
         <AnimatePresence initial={false}>
           {toasts.map((t) => {
             const I = TOAST_ICON[t.tone]

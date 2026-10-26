@@ -195,7 +195,11 @@ export const useDB = create<DB>()(
           get().log(personId, 'attendance.checkin', date)
         },
         endShift: (personId, early) => {
-          const live = get().tasks.find((t) => t.personId === personId)?.shiftId ?? 'morning'
+          const now = Date.now()
+          const shifts = get().shifts.filter((s) => s.memberIds.includes(personId))
+          const live = (shifts.find((s) => Date.parse(s.start) <= now && now < Date.parse(s.end))
+            ?? shifts[0])?.id
+            ?? [...get().tasks].filter((t) => t.personId === personId).sort((a, b) => b.start.localeCompare(a.start))[0]?.shiftId ?? 'morning'
           set((s) => ({
             cover: [...s.cover, { id: uid('c'), propertyId: s.properties[0].id, kind: early ? 'early_departure' : 'ended', personId, shiftId: live,
               date: hotelDateKey(), note: early ? 'Went early from the Employee app' : 'Ended shift from the Employee app', status: early ? 'pending' : 'approved' }],

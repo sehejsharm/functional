@@ -141,11 +141,11 @@ export const Skeleton = ({ className }: { className?: string }) => (
   </div>
 )
 
-export function ProgressBar({ value, max = 100, tone = 'brand', label, showValue, size = 'md' }: { value: number; max?: number; tone?: 'brand' | 'success' | 'warning' | 'danger' | 'gold'; label?: string; showValue?: boolean; size?: 'sm' | 'md' }) {
+export function ProgressBar({ value, max = 100, tone = 'brand', label, showValue, size = 'md', hideLabel }: { value: number; max?: number; tone?: 'brand' | 'success' | 'warning' | 'danger' | 'gold'; label?: string; showValue?: boolean; size?: 'sm' | 'md'; /** keep the label for screen readers only */ hideLabel?: boolean }) {
   const pct = max ? Math.max(0, Math.min(100, (value / max) * 100)) : 0
   return (
     <div className="w-full">
-      {(label || showValue) && <div className="mb-1 flex justify-between text-xs"><span className="text-ink-2">{label}</span>{showValue && <span className="font-medium tabular text-ink">{Math.round(pct)}%</span>}</div>}
+      {((label && !hideLabel) || showValue) && <div className="mb-1 flex justify-between text-xs"><span className="text-ink-2">{hideLabel ? '' : label}</span>{showValue && <span className="font-medium tabular text-ink">{Math.round(pct)}%</span>}</div>}
       <div className={clsx('w-full overflow-hidden rounded-pill bg-ink/[0.07]', size === 'sm' ? 'h-1.5' : 'h-2')} role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
         <motion.div className={clsx('h-full rounded-pill', { brand: 'bg-forest-700', success: 'bg-ok', warning: 'bg-amber', danger: 'bg-danger', gold: 'bg-gold-500' }[tone])}
           initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.6, ease: 'easeOut' }} />

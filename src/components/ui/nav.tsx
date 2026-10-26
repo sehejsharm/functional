@@ -1,6 +1,5 @@
 import clsx from 'clsx'
-import { motion } from 'framer-motion'
-import { useId, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 export interface TabItem<T extends string> { id: T; label: ReactNode; count?: number }
 
@@ -9,7 +8,6 @@ export interface TabItem<T extends string> { id: T; label: ReactNode; count?: nu
  * view toggles (a segmented control).
  */
 export function Tabs<T extends string>({ value, onChange, items, variant = 'underline', className }: { value: T; onChange: (v: T) => void; items: TabItem<T>[]; variant?: 'underline' | 'pill'; className?: string }) {
-  const id = useId()
   if (variant === 'pill') return <Segmented value={value} onChange={onChange} items={items} className={className} />
   return (
     <div role="tablist" className={clsx('scrollbar-none flex gap-5 overflow-x-auto border-b border-line', className)}>
@@ -20,7 +18,7 @@ export function Tabs<T extends string>({ value, onChange, items, variant = 'unde
             className={clsx('relative -mb-px flex items-center gap-2 whitespace-nowrap pb-2.5 pt-1 text-sm font-medium transition-colors', on ? 'text-ink' : 'text-muted hover:text-ink')}>
             {it.label}
             {it.count != null && <span className={clsx('rounded-pill px-1.5 py-px text-2xs font-semibold tabular', on ? 'bg-forest-900 text-white' : 'bg-ink/[0.07] text-ink-2')}>{it.count}</span>}
-            {on && <motion.span layoutId={`tabs-${id}`} className="absolute inset-x-0 bottom-0 h-0.5 rounded-pill bg-forest-900" transition={{ type: 'spring', bounce: 0.15, duration: 0.35 }} />}
+            <span aria-hidden className={clsx('absolute inset-x-0 bottom-0 h-0.5 rounded-pill bg-forest-900 transition-opacity duration-200', on ? 'opacity-100' : 'opacity-0')} />
           </button>
         )
       })}
@@ -29,15 +27,13 @@ export function Tabs<T extends string>({ value, onChange, items, variant = 'unde
 }
 
 export function Segmented<T extends string>({ value, onChange, items, className, size = 'md' }: { value: T; onChange: (v: T) => void; items: TabItem<T>[]; className?: string; size?: 'sm' | 'md' }) {
-  const id = useId()
   return (
     <div role="tablist" className={clsx('inline-flex rounded-cell bg-ink/[0.06] p-0.5', className)}>
       {items.map((it) => {
         const on = value === it.id
         return (
           <button key={it.id} type="button" role="tab" aria-selected={on} onClick={() => onChange(it.id)}
-            className={clsx('relative flex items-center gap-1.5 whitespace-nowrap rounded-[7px] font-medium transition-colors', size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm', on ? 'text-ink' : 'text-muted hover:text-ink')}>
-            {on && <motion.span layoutId={`seg-${id}`} className="absolute inset-0 rounded-[7px] bg-surface shadow-sm ring-1 ring-line" transition={{ type: 'spring', bounce: 0.15, duration: 0.3 }} />}
+            className={clsx('relative flex items-center gap-1.5 whitespace-nowrap rounded-[7px] font-medium transition-all duration-150', size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm', on ? 'bg-surface text-ink shadow-sm ring-1 ring-line' : 'text-muted hover:text-ink')}>
             <span className="relative">{it.label}</span>
             {it.count != null && <span className="relative rounded-pill bg-ink/[0.08] px-1.5 text-2xs font-semibold tabular">{it.count}</span>}
           </button>

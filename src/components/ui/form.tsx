@@ -1,5 +1,4 @@
 import clsx from 'clsx'
-import { motion } from 'framer-motion'
 import { Check, Search, X } from 'lucide-react'
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
 import { forwardRef } from 'react'
@@ -40,7 +39,7 @@ export function Switch({ checked, onChange, label, description, disabled }: { ch
     <label className={clsx('flex items-start gap-3', disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer')}>
       <button type="button" role="switch" aria-checked={checked} disabled={disabled} onClick={() => onChange(!checked)}
         className={clsx('relative mt-0.5 h-5 w-9 shrink-0 rounded-pill transition-colors', checked ? 'bg-forest-700' : 'bg-ink/20')}>
-        <motion.span layout transition={{ type: 'spring', stiffness: 500, damping: 32 }} className={clsx('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow', checked ? 'right-0.5' : 'left-0.5')} />
+        <span aria-hidden className={clsx('absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200', checked && 'translate-x-4')} />
       </button>
       {(label || description) && <span className="min-w-0"><span className="block text-sm font-medium text-ink">{label}</span>{description && <span className="block text-xs text-muted">{description}</span>}</span>}
     </label>
