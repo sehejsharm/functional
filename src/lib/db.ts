@@ -88,11 +88,13 @@ export const useDB = create<DB>()(
           set((s) => ({ audit: [{ id: uid('au'), propertyId: s.properties[0].id, actorId, action, detail, at: nowIso() }, ...s.audit] })),
 
         startTask: (id) => {
+          if (get().tasks.find((x) => x.id === id)?.status !== 'scheduled') return
           patchTask(id, () => ({ status: 'in_progress', startedAt: nowIso() }))
           const t = get().tasks.find((x) => x.id === id)
           if (t) get().log(t.personId, 'task.started', id)
         },
         toggleStep: (id, stepId) => {
+          if (get().tasks.find((x) => x.id === id)?.status !== 'in_progress') return
           // Optimistic: the tick lands immediately; if offline it is also queued for sync.
           patchTask(id, (t) => ({
             doneStepIds: t.doneStepIds.includes(stepId) ? t.doneStepIds.filter((x) => x !== stepId) : [...t.doneStepIds, stepId],
@@ -101,11 +103,23 @@ export const useDB = create<DB>()(
         },
         attachPhoto: (id, stepId) => patchTask(id, (t) => ({ photoStepIds: [...new Set([...t.photoStepIds, stepId])] })),
         requestVerification: (id) => {
-          patchTask(id, () => ({ status: 'awaiting_verification' }))
           const t = get().tasks.find((x) => x.id === id)
-          if (t) get().log(t.personId, 'task.verification_requested', id)
+          const v = t && get().sopVersions.find((x) => x.id === t.sopVersionId)
+          if (!t || !v || t.status !== 'in_progress') return
+          const required = t.mode === 'standard' ? v.steps.filter((s, i) => s.requireCheck || i === v.steps.length - 1) : v.steps
+          if (!required.every((s) => t.doneStepIds.includes(s.id))) return
+          // Only SOPs with recorded checks need an independent verifier; the rest finish here.
+          if (v.steps.some((s) => s.requireCheck)) {
+            patchTask(id, () => ({ status: 'awaiting_verification' }))
+            get().log(t.personId, 'task.verification_requested', id)
+          } else {
+            patchTask(id, () => ({ status: 'done', completedAt: nowIso() }))
+            get().log(t.personId, 'task.completed', id)
+          }
         },
         verifyTask: (id, actorId) => {
+          const t = get().tasks.find((x) => x.id === id)
+          if (!t || t.status !== 'awaiting_verification' || t.personId === actorId) return
           patchTask(id, () => ({ status: 'done', completedAt: nowIso() }))
           get().log(actorId, 'task.verified', id)
         },
@@ -154,6 +168,10 @@ export const useDB = create<DB>()(
         assignTask: ({ sopId, ...t }) => {
           const sop = get().sops.find((s) => s.id === sopId)
           if (!sop?.currentVersionId) return null
+          const v = get().sopVersions.find((x) => x.id === sop.currentVersionId)
+          if (v?.status !== 'published') return null
+          // One open task per room per shift.
+          if (get().tasks.some((x) => x.roomId === t.roomId && x.shiftId === t.shiftId && x.status !== 'done' && hotelDateKey(x.start) === hotelDateKey(t.start))) return null
           const task: Task = {
             ...t, id: uid('t'), propertyId: get().properties[0].id, sopVersionId: sop.currentVersionId, status: 'scheduled',
             doneStepIds: [], photoStepIds: [], mode: 'guided', reviewedVersionConfirmed: true,

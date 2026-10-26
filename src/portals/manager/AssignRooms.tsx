@@ -32,13 +32,16 @@ export function AssignRooms() {
   const live = useLiveShift(now, shifts)
   const [shiftId, setShiftId] = useState(live?.id ?? shifts[0].id)
   const shift = byId(shifts, shiftId)!
-  const sop = sops.find((s) => s.id === 'hk-reset')!
-  const published = byId(sopVersions, sop.currentVersionId)!
+  // Every published SOP can be turned into room tasks; each task pins the version shown here.
+  const assignable = sops.filter((s) => byId(sopVersions, s.currentVersionId)?.status === 'published')
+  const [sopId, setSopId] = useState(assignable.find((s) => s.id === 'hk-reset')?.id ?? assignable[0]?.id)
+  const sop = byId(assignable, sopId) ?? assignable[0]
+  const published = byId(sopVersions, sop?.currentVersionId)
   const [roomQ, setRoomQ] = useState('')
   const [coverOpen, setCoverOpen] = useState(false)
   const [done, setDone] = useState<string | null>(null)
 
-  const roster = people.filter((p) => shift.memberIds.includes(p.id) && p.jobRoleId === published.jobRoleId)
+  const roster = people.filter((p) => shift.memberIds.includes(p.id) && p.jobRoleId === published?.jobRoleId)
   const unknown = shift.memberIds.filter((id) => !attendance.some((a) => a.personId === id && a.date === hotelDateKey(now))).length
   const filteredRooms = rooms.filter((r) => {
     const q = roomQ.toLowerCase(); if (!q) return true
@@ -52,13 +55,15 @@ export function AssignRooms() {
     defaultValues: { personId: '', roomId: '', start: toHotelInput(Math.max(now, Date.parse(shift.start)) + 5 * MIN), priority: 'standard' },
   })
   const startVal = watch('start')
-  const finish = startVal ? toHotelInput(Date.parse(fromHotelInput(startVal)) + published.timeTargetMin * MIN) : ''
+  const finish = startVal && published ? toHotelInput(Date.parse(fromHotelInput(startVal)) + published.timeTargetMin * MIN) : ''
   const lateFinish = finish && Date.parse(fromHotelInput(finish)) > deadline
 
   const onSubmit = (f: Form) => {
+    if (!sop) return
     const start = fromHotelInput(f.start)
     const t = assignTask({ shiftId, personId: f.personId, roomId: f.roomId, start, end: fromHotelInput(finish), priority: f.priority as Priority, assignedById: me!.id, sopId: sop.id })
     if (t) { setDone(`Room ${byId(rooms, f.roomId)?.number} assigned to ${byId(people, f.personId)?.name}.`); reset({ ...f, roomId: '' }) }
+    else setDone('That room already has open work on this shift.')
   }
 
   const shiftTasks = tasks.filter((t) => t.shiftId === shiftId && hotelDateKey(t.start) === hotelDateKey(now))
@@ -108,10 +113,19 @@ export function AssignRooms() {
           </Section>
 
           <Section id="assign" title="Assign a room">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-forest-950/40 p-4">
-              <div><div className="text-xs text-sage-300">Published SOP</div><div className="font-semibold text-white">{published.code} · Version {published.version} · {published.title}</div></div>
-              <Pill tone="ok"><CheckCircle2 size={12} /> You reviewed this exact version</Pill>
-            </div>
+            {!published ? <p className="mb-5 text-sm text-amber">No SOP is published yet. An author must release one before rooms can be assigned.</p> : (
+              <div className="mb-5 space-y-3 rounded-xl bg-forest-950/40 p-4">
+                <label className="block"><span className="label">SOP for this task</span>
+                  <select className="input" value={sop?.id} onChange={(e) => { setSopId(e.target.value); setValue('personId', '') }}>
+                    {assignable.map((s) => { const pv = byId(sopVersions, s.currentVersionId)!; return <option key={s.id} value={s.id}>{pv.code} · {pv.title} · {pv.timeTargetMin} min</option> })}
+                  </select>
+                </label>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-sm text-sage-200">Version {published.version} · {published.steps.length} steps{published.steps.some((x) => x.requireCheck) ? ' · needs independent verification' : ''}</div>
+                  <Pill tone="ok"><CheckCircle2 size={12} /> You reviewed this exact version</Pill>
+                </div>
+              </div>
+            )}
             <p className="mb-5 text-sm text-sage-300">{accepting
               ? `This shift is accepting assignments now. Set a due time before ${fDateTime(deadline)}, hotel time.`
               : 'This shift has closed for assignments.'}</p>
@@ -142,7 +156,7 @@ export function AssignRooms() {
                   })}
                 </div>
               </Step>
-              <Step n={3} title="Time slot · hotel time" hint={`${published.timeTargetMin} minutes`} error={errors.start?.message}>
+              <Step n={3} title="Time slot · hotel time" hint={`${published?.timeTargetMin ?? 0} minutes`} error={errors.start?.message}>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label><span className="label">Start</span><input type="datetime-local" className="input" {...register('start')} /></label>
                   <label><span className="label">Finish (from SOP target)</span><input type="datetime-local" className="input" value={finish} readOnly /></label>
@@ -154,7 +168,7 @@ export function AssignRooms() {
                 <select className="input" {...register('priority')}>{(['standard', 'high', 'urgent'] as Priority[]).map((p) => <option key={p} value={p}>{priorityLabel[p]}</option>)}</select>
               </label>
               <div className="flex items-center gap-4">
-                <Button type="submit" variant="gold" disabled={!accepting || !!lateFinish}>Assign room</Button>
+                <Button type="submit" variant="gold" disabled={!accepting || !!lateFinish || !published}>Assign room</Button>
                 <AnimatePresence>{done && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm text-ok">{done}</motion.span>}</AnimatePresence>
               </div>
             </form>
