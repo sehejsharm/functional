@@ -62,7 +62,7 @@ async function rateLimited(c: Context<{ Bindings: Env; Variables: Vars }>, bucke
 app.use('*', async (c, next) => {
   const allowed = (c.env.ALLOWED_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean)
   return cors({
-    origin: (o) => (allowed.includes(o) || allowed.some((a) => a.startsWith('*.') && o.endsWith(a.slice(1))) ? o : null),
+    origin: (o) => (allowed.includes(o) || allowed.some((a) => a.startsWith('*') && o.startsWith('https://') && o.endsWith(a.slice(1))) ? o : null),
     allowHeaders: ['Authorization', 'Content-Type'], allowMethods: ['GET', 'POST', 'OPTIONS'], maxAge: 86400,
   })(c, next)
 })
