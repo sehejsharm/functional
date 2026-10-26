@@ -113,9 +113,21 @@ export function startRevision(sopId: string, actorId: string): { version: SopVer
   const open = openRevisionOf(s, sopId)
   if (open && (open.status === 'draft' || open.status === 'changes_requested') && open.authorId === actorId) return { version: open, reused: true }
   if (open?.status === 'in_review') return { blocked: open }
-  const from = currentOf(s, sopId) ?? versionsOf(s, sopId)[0]
-  const d = s.newDraftFrom(from?.id ?? null, actorId)
-  s.log(actorId, 'sop.revision_started', `${d.code} ${d.version} from ${from?.version ?? 'blank'}`)
+  const cur = currentOf(s, sopId)
+  if (cur) {
+    const d = s.newDraftFrom(cur.id, actorId)
+    s.log(actorId, 'sop.revision_started', `${d.code} ${d.version} from ${cur.version}`)
+    return { version: d, reused: false }
+  }
+  // Never published (e.g. a rejected first version): rework it as a fresh 1.0 of the same SOP.
+  const src = versionsOf(s, sopId)[0]
+  const at = nowIso()
+  const d: SopVersion = src ? {
+    ...src, id: uid('v'), version: '1.0', baseVersionId: null, status: 'draft', authorId: actorId, createdAt: at, updatedAt: at, reviews: [],
+    submittedAt: undefined, publishedAt: undefined, effectiveAt: undefined,
+  } : s.newDraftFrom(null, actorId)
+  if (src) useDB.setState((st) => ({ sopVersions: [...st.sopVersions, d] }))
+  s.log(actorId, 'sop.revision_started', `${d.code} ${d.version} reworked`)
   return { version: d, reused: false }
 }
 
