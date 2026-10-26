@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { CornerDownLeft, Minimize2, Pause, Play } from 'lucide-react'
+import { CornerDownLeft, History, Minimize2, Pause, Play, ShieldCheck, WifiOff } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, HelpBadge, IconBadge, Logo } from '@/components/ui'
@@ -50,7 +50,7 @@ export function LoginScreen() {
         <div className="relative z-10 mx-auto my-auto w-full max-w-md py-10">
           <div className="mb-3 text-2xs font-semibold uppercase tracking-[0.16em] text-gold-400">Aurora Grand Colombo</div>
           <h1 className="mb-3 font-display text-5xl font-bold leading-[1.02] text-white sm:text-6xl">Every shift,<br />a little better.</h1>
-          <p className="mb-8 text-sage-300">Step inside your hotel workspace.</p>
+          <p className="mb-8 text-sage-200">Sign in to your hotel workspace — standards, rooms and teams in one place.</p>
 
           <form onSubmit={(e) => { e.preventDefault(); submit() }}>
             <PassphraseGrid length={PASSPHRASE_LENGTH} value={value} error={error > 0}
@@ -58,7 +58,7 @@ export function LoginScreen() {
             <AnimatePresence>
               {error > 0 && (
                 <motion.div id="passkey-error" role="alert" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                  className="mt-3 flex items-center justify-between rounded-xl border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
+                  className="mt-3 flex items-center justify-between gap-3 rounded-cell border border-[#ff9b8c]/40 bg-[#ff9b8c]/10 px-3 py-2 text-sm text-[#ffc2b8]">
                   <span>That passkey did not match. Try again.</span>
                   <span className="flex items-center gap-1 text-xs opacity-80"><CornerDownLeft size={12} /> Press Enter to retry.</span>
                 </motion.div>
@@ -66,8 +66,17 @@ export function LoginScreen() {
             </AnimatePresence>
             <Button type="submit" variant="gold" size="lg" className="mt-6 w-full" disabled={!value}>Enter workspace</Button>
           </form>
-          {usingDefaultPassphrase && <p className="mt-4 text-center text-xs text-sage-300/70">Shared demo · passkey <code className="text-gold-400">miseauroragrand26</code></p>}
+          {usingDefaultPassphrase && <p className="mt-4 text-center text-xs text-sage-300/80">Shared demo · passkey <code className="rounded bg-white/10 px-1.5 py-0.5 text-gold-300">miseauroragrand26</code></p>}
+          <ul className="mt-10 grid grid-cols-3 gap-3 border-t border-white/10 pt-6 text-2xs text-sage-300">
+            <li className="flex flex-col items-center gap-1.5 text-center"><ShieldCheck size={16} className="text-gold-400" />Role-based access</li>
+            <li className="flex flex-col items-center gap-1.5 text-center"><History size={16} className="text-gold-400" />Full audit trail</li>
+            <li className="flex flex-col items-center gap-1.5 text-center"><WifiOff size={16} className="text-gold-400" />Works offline</li>
+          </ul>
         </div>
+        <footer className="relative z-10 flex flex-wrap items-center justify-between gap-2 text-2xs text-sage-300/70">
+          <span>© {new Date().getFullYear()} Mise · Hotel service execution</span>
+          <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-[#5cb278]" /> All systems operational</span>
+        </footer>
       </main>
       <HelpDrawer open={help} onClose={() => setHelp(false)} portal="login" />
     </div>
