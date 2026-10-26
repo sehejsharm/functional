@@ -180,18 +180,18 @@ const KIND: Record<StepDiff['kind'], { label: string; tone: Tone; border: string
   same: { label: 'Unchanged', tone: 'neutral', border: 'border-l-line' },
 }
 
-export function DiffRow({ d, extra }: { d: StepDiff; extra?: ReactNode }) {
+export function DiffRow({ d, extra, plain }: { d: StepDiff; extra?: ReactNode; plain?: boolean }) {
   const k = KIND[d.kind]
   const care = splitCare(d.step.guestCare).care, prevCare = d.prev ? splitCare(d.prev.guestCare).care : ''
   return (
-    <li className={clsx('rounded-cell border border-l-[3px] border-line bg-surface p-3.5', k.border, d.kind === 'same' && 'bg-surface-2/60')}>
+    <li className={clsx('rounded-cell border border-l-[3px] border-line bg-surface p-3.5', plain ? 'border-l-forest-700' : k.border, d.kind === 'same' && 'bg-surface-2/60')}>
       <div className="flex items-start gap-3">
         <span className={clsx('grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-semibold tabular', d.kind === 'removed' ? 'bg-danger/10 text-danger' : d.kind === 'same' ? 'bg-ink/[0.06] text-muted' : 'bg-forest-900 text-white')}>
           {d.kind === 'removed' ? <Minus size={13} /> : d.n}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-            <Badge tone={k.tone}>{k.label}</Badge>
+          <div className={clsx('flex flex-wrap items-center gap-1.5', !plain && 'mb-1.5')}>
+            {!plain && <Badge tone={k.tone}>{k.label}</Badge>}
             {d.kind === 'removed' && <span className="text-xs text-muted">was step {d.was}</span>}
             {d.changes.filter((c) => d.kind !== 'added' && d.kind !== 'removed' && c !== 'Instruction reworded').map((c) => (
               <span key={c} className="inline-flex items-center gap-1 rounded-pill bg-ink/[0.05] px-2 py-0.5 text-2xs font-medium text-ink-2">{/^Moved/.test(c) && <MoveVertical size={10} />}{c}</span>
@@ -262,7 +262,7 @@ export function DiffView({ base, next, baseLabel, nextLabel, extra, defaultScope
           </table>
         </div>
       )}
-      {shown.length ? <ol className="space-y-2.5">{shown.map((d) => <DiffRow key={d.step.id + d.kind} d={d} extra={extra?.(d)} />)}</ol>
+      {shown.length ? <ol className="space-y-2.5">{shown.map((d) => <DiffRow key={d.step.id + d.kind} d={d} extra={extra?.(d)} plain={!base} />)}</ol>
         : <p className="rounded-cell border border-dashed border-line-strong px-4 py-6 text-center text-sm text-muted">The steps are identical. {fields.length ? 'Only the details above changed.' : ''}</p>}
     </div>
   )

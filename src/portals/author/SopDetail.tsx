@@ -154,7 +154,7 @@ function Overview({ sopId, v, current, view, setView }: { sopId: string; v: SopV
       </div>
       <div className="space-y-6">
         <div className="grid grid-cols-2 gap-3">
-          <StatCard label="Tasks run · 14 days" value={recent.length} icon={PlayCircle} trend={perDay} />
+          <StatCard label="Tasks · 14 days" value={recent.length} icon={PlayCircle} trend={perDay} />
           <StatCard label="On time" value={done.length ? st.onTimePct : '—'} unit={done.length ? '%' : undefined} icon={Clock} hint={done.length ? `${done.length} finished` : 'no finished tasks'} />
           <StatCard label="Avg duration" value={avgMin ?? '—'} unit={avgMin != null ? 'min' : undefined} icon={Timer} hint={`target ${v.timeTargetMin} min`} />
           <StatCard label="Acknowledged" value={ack.pct ?? '—'} unit={ack.pct != null ? '%' : undefined} icon={ShieldCheck} hint={current ? `${ack.acked} of ${ack.audience} staff` : 'not published'} />
@@ -216,7 +216,7 @@ function Versions({ versions, current, open }: { versions: SopVersion[]; current
     { key: 'submitted', header: 'Submitted', hideOnMobile: true, sort: (v) => v.submittedAt, csv: (v) => (v.submittedAt ? fDateTime(v.submittedAt) : ''), cell: (v) => (v.submittedAt ? <span title={fDateTime(v.submittedAt)}>{fDate(v.submittedAt)}</span> : <span className="text-muted">—</span>) },
     { key: 'approvals', header: 'Approvals', hideOnMobile: true, csv: (v) => approversOf(v).map((id) => byId(db.people, id)?.name).join('; '), cell: (v) => (v.status === 'draft' ? <span className="text-muted">—</span> : <ApprovalMeter v={v} />) },
     { key: 'published', header: 'Published', sort: (v) => v.publishedAt, csv: (v) => (v.publishedAt ? fDateTime(v.publishedAt) : ''), cell: (v) => (v.publishedAt ? <span title={fDateTime(v.publishedAt)}>{fDate(v.publishedAt)}</span> : <span className="text-muted">—</span>) },
-    { key: 'open', header: <span className="sr-only">Open</span>, align: 'right', cell: (v) => (
+    { key: 'open', header: <span className="relative block w-px"><span className="sr-only">Open</span></span>, align: 'right', cell: (v) => (
       v.status === 'draft' ? <Button size="xs" onClick={() => nav(`/author/edit/${v.id}`)}>Edit</Button>
         : v.status === 'in_review' || v.status === 'changes_requested' || v.status === 'rejected' ? <Button size="xs" onClick={() => nav(`/author/reviews/${v.id}`)}>Review</Button>
           : <Button size="xs" variant="ghost" icon={ArrowLeftRight} onClick={() => { setToId(v.id); const prev = released.find((x) => x.createdAt < v.createdAt); if (prev) setFromId(prev.id); document.getElementById('compare')?.scrollIntoView({ behavior: 'smooth' }) }}>Compare</Button>

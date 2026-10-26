@@ -1,14 +1,14 @@
 import { Archive, ArchiveRestore, BookCheck, ClipboardPen, Copy, ExternalLink, FilePen, FileUp, GitPullRequestArrow, MoreHorizontal, Plus, ShieldCheck, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Card, CardHeader, DataTable, IconButton, Menu, PageHeader, ProgressBar, Select, Skeleton, StatCard, Tabs, type Column } from '@/components/ui'
+import { Avatar, Button, Card, CardHeader, DataTable, IconButton, Menu, PageHeader, ProgressBar, Select, Skeleton, StatCard, Tabs, type Column } from '@/components/ui'
 import { useDB } from '@/lib/db'
 import { useFirstLoad } from '@/lib/hooks'
 import { fDateTime } from '@/lib/time'
 import { confirm, toast } from '@/lib/toast'
 import { relTime, usePersona } from '@/shell/PortalShell'
 import { deleteSopDraft, quorumMet, sopRows, type SopRow } from './actions'
-import { PersonChip, RowStatusBadge, VersionStatusBadge, VersionTag, useSopCommands } from './components'
+import { RowStatusBadge, VersionStatusBadge, VersionTag, useSopCommands } from './components'
 
 type TabId = 'all' | 'published' | 'review' | 'drafts' | 'retired'
 
@@ -49,16 +49,15 @@ export function MySops() {
   }
 
   const columns: Column<SopRow>[] = [
-    { key: 'code', header: 'Code', sort: (r) => r.code, width: '150px',
-      cell: (r) => <span className="font-mono text-[13px] font-semibold text-ink">{r.code}</span> },
-    { key: 'title', header: 'Title', sort: (r) => r.title,
+    { key: 'sop', header: 'SOP', sort: (r) => r.code, csv: (r) => `${r.code} — ${r.title}`,
       cell: (r) => (
-        <div className="min-w-[180px]">
-          <div className="font-medium text-ink">{r.title}</div>
-          <div className="text-xs text-muted">{db.jobRoles.find((j) => j.id === r.roleId)?.name}</div>
+        <div className="min-w-[180px] max-w-[280px]">
+          <div className="font-mono text-xs font-semibold text-forest-800">{r.code}</div>
+          <div className="truncate font-medium text-ink" title={r.title}>{r.title}</div>
         </div>
       ) },
-    { key: 'department', header: 'Department', sort: (r) => r.department, hideOnMobile: true, cell: (r) => <span className="text-ink-2">{r.department}</span> },
+    { key: 'department', header: 'Department', sort: (r) => r.department, hideOnMobile: true,
+      cell: (r) => <div className="leading-tight"><div className="text-ink-2">{r.department}</div><div className="mt-0.5 text-xs text-muted">{db.jobRoles.find((j) => j.id === r.roleId)?.name}</div></div> },
     { key: 'version', header: 'Version', sort: (r) => Number(r.version) || 0, csv: (r) => r.version,
       cell: (r) => <VersionTag label={r.version} draft={!r.current && r.status !== 'retired' && r.status !== 'rejected'} /> },
     { key: 'status', header: 'Status', sort: (r) => r.status, csv: (r) => r.status,
@@ -68,18 +67,19 @@ export function MySops() {
           {r.current && r.open && !r.flags.retired && <span className="whitespace-nowrap text-2xs text-muted">{r.open.version} {r.open.status === 'in_review' ? 'in review' : r.open.status === 'changes_requested' ? 'needs changes' : 'drafting'}</span>}
         </div>
       ) },
-    { key: 'author', header: 'Author', sort: (r) => db.people.find((p) => p.id === r.authorId)?.name, hideOnMobile: true, cell: (r) => <PersonChip id={r.authorId} size={22} /> },
-    { key: 'updated', header: 'Last updated', sort: (r) => r.updatedAt, csv: (r) => fDateTime(r.updatedAt), hideOnMobile: true,
+    { key: 'author', header: 'Author', sort: (r) => db.people.find((p) => p.id === r.authorId)?.name, hideOnMobile: true, csv: (r) => db.people.find((p) => p.id === r.authorId)?.name,
+      cell: (r) => { const n = db.people.find((p) => p.id === r.authorId)?.name; return n ? <span role="img" aria-label={n} className="inline-flex"><Avatar name={n} size={26} /></span> : '—' } },
+    { key: 'updated', header: 'Updated', sort: (r) => r.updatedAt, csv: (r) => fDateTime(r.updatedAt), hideOnMobile: true,
       cell: (r) => <span className="whitespace-nowrap text-ink-2" title={fDateTime(r.updatedAt)}>{relTime(r.updatedAt)}</span> },
-    { key: 'tasks', header: 'Tasks 14d', sort: (r) => r.tasks14, align: 'right', hideOnMobile: true, cell: (r) => r.tasks14 || <span className="text-muted">—</span> },
+    { key: 'tasks', header: 'Tasks 14d', sort: (r) => r.tasks14, width: '96px', align: 'right', hideOnMobile: true, cell: (r) => r.tasks14 || <span className="text-muted">—</span> },
     { key: 'ack', header: 'Ack', sort: (r) => r.ack.pct ?? -1, csv: (r) => (r.ack.pct == null ? '' : `${r.ack.pct}%`), align: 'right', hideOnMobile: true,
-      cell: (r) => r.ack.pct == null ? <span className="text-muted">—</span> : (
-        <div className="ml-auto flex w-24 flex-col items-end gap-1" title={`${r.ack.acked} of ${r.ack.audience} staff acknowledged ${r.current?.version}`}>
+      cell: (r) => r.ack.pct == null || r.flags.retired ? <span className="text-muted">—</span> : (
+        <div className="ml-auto flex w-16 flex-col items-end gap-1" title={`${r.ack.acked} of ${r.ack.audience} staff acknowledged ${r.current?.version}`}>
           <span className="text-sm font-medium tabular">{r.ack.pct}%</span>
           <ProgressBar size="sm" value={r.ack.pct} tone={r.ack.pct >= 80 ? 'success' : r.ack.pct >= 50 ? 'warning' : 'danger'} />
         </div>
       ) },
-    { key: 'menu', header: <span className="sr-only">Actions</span>, align: 'right', width: '52px',
+    { key: 'menu', header: <span className="relative block w-px"><span className="sr-only">Actions</span></span>, align: 'right', width: '52px',
       cell: (r) => (
         <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
           <Menu label={`Actions for ${r.code}`} trigger={({ toggle }) => <IconButton icon={MoreHorizontal} label={`Actions for ${r.code}`} size="sm" onClick={toggle} />}
@@ -153,7 +153,7 @@ export function MySops() {
             filters={<Select aria-label="Department" className="h-9 w-full py-1.5 sm:w-48" value={dept} onChange={(e) => setDept(e.target.value)}>
               <option value="all">All departments</option>{departments.map((d) => <option key={d}>{d}</option>)}
             </Select>}
-            exportName="mise-sop-library" initialSort={{ key: 'code', dir: 'asc' }} pageSize={12} caption="SOP library"
+            exportName="mise-sop-library" initialSort={{ key: 'sop', dir: 'asc' }} pageSize={12} caption="SOP library"
             rowClassName={(r) => (r.flags.retired ? 'opacity-70' : undefined)}
             empty={<div className="px-6 py-12 text-center text-sm text-muted">No SOPs in this view{dept !== 'all' ? ` for ${dept}` : ''}.</div>} />
         )}

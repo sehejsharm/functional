@@ -55,7 +55,7 @@ export function ReviewsReleases() {
       if (v.status === 'rejected') return <Badge tone="danger" dot>Closed</Badge>
       return <Badge tone="success" dot>{v.status === 'published' ? 'Live' : 'Superseded'}</Badge>
     } },
-    { key: 'open', header: <span className="sr-only">Open</span>, align: 'right',
+    { key: 'open', header: <span className="relative block w-px"><span className="sr-only">Open</span></span>, align: 'right',
       cell: (v) => <Button size="xs" variant={v.status === 'in_review' && quorumMet(v) ? 'gold' : 'secondary'} onClick={(e) => { e.stopPropagation(); nav(`/author/reviews/${v.id}`) }}>
         {v.status === 'in_review' ? (quorumMet(v) ? 'Release' : 'Review') : 'Open'}</Button> },
   ]
@@ -164,7 +164,7 @@ export function VersionReview() {
     const canComment = open && !isAuthor
     if (!threads.length && !canComment) return null
     return (
-      <div className="ml-10 mt-3 space-y-2 border-t border-line pt-2.5">
+      <div className={clsx('ml-10 space-y-2', threads.length ? 'mt-3 border-t border-line pt-2.5' : 'mt-2')}>
         {threads.map((t) => (
           <div key={t.id} className="flex items-start gap-2 text-sm">
             <Avatar name={name(t.reviewerId)} size={22} />
@@ -200,7 +200,7 @@ export function VersionReview() {
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-ok/15 text-ok"><CheckCircle2 size={22} /></span>
           <div className="min-w-0 flex-1">
             <div className="text-base font-semibold text-ink">{releasedAs ? `Released as v${released} · effective now` : `Published v${released}${v.publishedAt ? ` · ${fDateTime(v.publishedAt)}` : ''}`}</div>
-            <p className="mt-0.5 text-sm text-ink-2">New assignments use v{released}. Rooms that were already assigned keep the version they were given until they finish. {role ? `${audience} ${role.name.toLowerCase()} staff are asked to acknowledge it.` : ''}</p>
+            <p className="mt-0.5 text-sm text-ink-2">New assignments use v{released}. Rooms that were already assigned keep the version they were given until they finish. {role ? `${audience} staff (${role.name}) are asked to acknowledge it.` : ''}</p>
           </div>
           <div className="flex gap-2"><Button onClick={() => nav('/author/reviews')}>Back to reviews</Button><Button variant="primary" iconRight={ArrowRight} onClick={() => nav(`/author/sops/${v.sopId}`)}>Open SOP</Button></div>
         </div>
@@ -300,10 +300,12 @@ export function VersionReview() {
           {live && <li className="flex gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-info/10 text-info"><Pin size={15} /></span>
             <span><b className="text-ink">{pinned.length ? `${pinned.length} room${pinned.length === 1 ? '' : 's'} stay on v${live.version}` : `No rooms are assigned on v${live.version} right now`}</b><br />
               <span className="text-ink-2">{pinned.length ? `${inProgress} in progress and ${pinned.length - inProgress} scheduled were assigned on v${live.version}. They stay pinned to it until they finish — nobody’s checklist changes mid-room.` : 'Nothing in flight is affected.'}</span></span></li>}
+          {!live && <li className="flex gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-info/10 text-info"><Pin size={15} /></span>
+            <span><b className="text-ink">Nothing in flight to migrate</b><br /><span className="text-ink-2">This is the first version, so no rooms are pinned to an older one.</span></span></li>}
           <li className="flex gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ok/10 text-ok"><ArrowRight size={15} /></span>
             <span><b className="text-ink">New assignments use v{next.label}</b><br /><span className="text-ink-2">From the moment you release, managers assign this version.{live ? ` v${live.version} becomes superseded and stays readable in history.` : ''}</span></span></li>
           <li className="flex gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gold-50 text-gold-700"><Users size={15} /></span>
-            <span><b className="text-ink">{audience} {role?.name.toLowerCase() ?? 'staff'} asked to acknowledge</b><br /><span className="text-ink-2">Acknowledgment is tracked per version, so everyone confirms they have read v{next.label}.</span></span></li>
+            <span><b className="text-ink">{audience} staff{role ? ` (${role.name})` : ''} asked to acknowledge</b><br /><span className="text-ink-2">Acknowledgment is tracked per version, so everyone confirms they have read v{next.label}.</span></span></li>
         </ul>
         <div className="mt-4 rounded-cell bg-surface-2 p-3 text-xs text-ink-2">
           <span className="font-semibold text-ink">Approved by </span>{approversOf(v).map(name).join(' and ')} · {next.structural || !live ? 'structural' : 'wording'} change · {v.steps.length} steps

@@ -301,6 +301,8 @@ export function CreateSop() {
   const undoImport = () => { if (!undoForm) return; setForm(undoForm); setUndoForm(null); setImport(draftId ?? 'new', null); toast.info('Import undone', { description: 'The form is back to how it was.' }) }
   const onDrop = (e: DragEvent) => { e.preventDefault(); setDrag(false); void onImport(e.dataTransfer.files?.[0]) }
 
+  const brand = imported?.sourceProperty?.split(/[\s,·]+/)[0]
+  const brandHits = brand ? form.steps.map((s, i) => (`${s.instruction} ${s.guestCare}`.toLowerCase().includes(brand.toLowerCase()) ? i + 1 : 0)).filter(Boolean) : []
   const generalLinks = links.map((fid) => byId(db.feedback, fid)).filter((f) => f && (!f.stepId || !form.steps.some((s) => s.id === f.stepId)))
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -359,7 +361,12 @@ export function CreateSop() {
             <div className="p-5">
               <input ref={fileRef} type="file" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" className="sr-only" aria-label="Upload SOP document" tabIndex={-1}
                 onChange={(e) => { void onImport(e.target.files?.[0]); e.target.value = '' }} />
-              {imported && !importing ? (
+              {!imported && !importing && draft && (draft.baseVersionId || draft.steps.some((st) => st.instruction.trim())) ? (
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm text-ink-2">Replace this draft’s content from a PDF or text file. You can undo it until you save.</p>
+                  <Button size="sm" icon={FileUp} onClick={() => fileRef.current?.click()}>Import from a document</Button>
+                </div>
+              ) : imported && !importing ? (
                 <ImportSummary r={imported} steps={form.steps} canUndo={!!undoForm} onUndo={undoImport} onReplace={() => fileRef.current?.click()} saved={!!draft && !dirty} />
               ) : (
                 <button type="button" onClick={() => fileRef.current?.click()} onDragOver={(e) => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)} onDrop={onDrop}
@@ -415,7 +422,7 @@ export function CreateSop() {
 
           {/* Steps */}
           <Card>
-            <CardHeader title="Steps" description="Plain words. Say what to do, when to stop and what a good finish looks like."
+            <CardHeader title="Steps" description="Plain words: what to do, when to stop, what a good finish looks like. Guest-care detail is what the guest should hear or notice — staff see it in gold."
               actions={<span className={clsx('text-xs font-medium tabular', form.steps.length >= MAX_STEPS ? 'text-amber' : 'text-muted')}>{form.steps.length} / {MAX_STEPS}</span>} />
             <div className="space-y-3 p-3 sm:p-5">
               {generalLinks.length > 0 && (
@@ -488,6 +495,7 @@ export function CreateSop() {
           <li className="flex gap-2"><CheckCircle2 size={16} className="mt-0.5 shrink-0 text-ok" /> Releases as <b className="text-ink">v{proposal.label}</b> — {!current ? 'the first version of this SOP' : proposal.structural ? 'a structural change' : 'a wording change'}.</li>
           <li className="flex gap-2"><ShieldCheck size={16} className="mt-0.5 shrink-0 text-info" /> Needs {APPROVALS_REQUIRED} independent approvals. Your own approval never counts.</li>
           <li className="flex gap-2"><Lock size={16} className="mt-0.5 shrink-0 text-muted" /> {current ? `Staff keep following v${current.version} until a reviewer-approved release.` : 'Staff can’t see it until it is released.'}</li>
+          {brandHits.length > 0 && <li className="flex gap-2 rounded-cell bg-amber/[0.08] px-2.5 py-2 text-ink"><AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber" /> Step {brandHits.join(', ')} still mention{brandHits.length === 1 ? 's' : ''} “{brand}” — the source document was written for {imported?.sourceProperty}.</li>}
           {form.steps.some((s) => !s.guestCare.trim()) && <li className="flex gap-2"><Info size={16} className="mt-0.5 shrink-0 text-muted" /> {form.steps.filter((s) => !s.guestCare.trim()).length} step{form.steps.filter((s) => !s.guestCare.trim()).length === 1 ? ' has' : 's have'} no guest-care detail — that’s fine if nothing guest-facing happens there.</li>}
         </ul>
       </Modal>
@@ -660,7 +668,7 @@ function StepCard({ i, s, total, readOnly, error, noteError, onChange, onMove, o
           <Textarea id={`step-${i}-instruction`} rows={2} maxLength={400} value={s.instruction} invalid={!!error} onChange={(e) => onChange({ instruction: e.target.value })}
             placeholder="What should the employee do? e.g. Knock twice, announce housekeeping and wait ten seconds." />
         </Field>
-        <Field label="Guest-care detail" htmlFor={`step-${i}-care`} hint="Optional — what the guest should hear or notice. Shown in gold under the step.">
+        <Field label={<>Guest-care detail <span className="font-normal text-muted">· optional</span></>} htmlFor={`step-${i}-care`}>
           <Textarea id={`step-${i}-care`} rows={2} maxLength={400} value={s.guestCare} onChange={(e) => onChange({ guestCare: e.target.value })} placeholder="e.g. If a guest answers, offer a later time — never enter an occupied room." />
         </Field>
         <div className="grid gap-2 sm:grid-cols-2">
