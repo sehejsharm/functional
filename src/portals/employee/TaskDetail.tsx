@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion'
 import { AlertOctagon, ArrowLeft, Ban, Flag } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -42,7 +41,7 @@ export function TaskDetail() {
   const allDone = required.every((s) => task.doneStepIds.includes(s.id))
 
   return (
-    <motion.div layoutId={`task-${task.id}`} className="space-y-5">
+    <div className="space-y-5">
       <div className="flex items-center justify-between">
         <Link to="/employee" className="inline-flex items-center gap-1 text-sm text-sage-300 hover:text-white"><ArrowLeft size={16} /> Work</Link>
         <button onClick={() => setIssue(true)} className="inline-flex items-center gap-1 text-sm font-semibold text-gold-400 hover:underline"><Flag size={14} /> Report Issue</button>
@@ -105,6 +104,6 @@ export function TaskDetail() {
         <textarea className="input min-h-24" value={issueText} onChange={(e) => setIssueText(e.target.value)} placeholder="What happened?" />
         <Button variant="gold" className="mt-3 w-full" disabled={!issueText} onClick={() => { reportIssue(task.id, person.id, issueText); setIssue(false); setIssueText(''); setSent('Issue reported to your supervisor.') }}>Send report</Button>
       </Drawer>
-    </motion.div>
+    </div>
   )
 }

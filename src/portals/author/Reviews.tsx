@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { ArrowLeft, ChevronDown, Rocket } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Lock, Rocket } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Avatar, Button, Empty, PageHeader, Pill, Section } from '@/components/ui'
@@ -71,7 +71,12 @@ export function VersionReview() {
     <div className="space-y-6">
       <Link to="/author/reviews" className="inline-flex items-center gap-1 text-sm text-sage-300 hover:text-white"><ArrowLeft size={14} /> Reviews & releases</Link>
       <PageHeader eyebrow={`${v.code} · ${v.version}`} title={v.title} tagline={`${n}/${APPROVALS_REQUIRED} approvals · ${v.status.replace('_', ' ')}`}
-        right={released ? <Pill tone="ok">Released as {released}</Pill> : <Button variant="gold" disabled={n < APPROVALS_REQUIRED || v.status !== 'in_review'} onClick={() => setReleased(release(v.id, person!.id))}><Rocket size={16} /> Release as {next.label}</Button>} />
+        right={released ? <Pill tone="ok">Released as {released}</Pill> : n >= APPROVALS_REQUIRED && v.status === 'in_review'
+          ? <Button variant="gold" onClick={() => setReleased(release(v.id, person!.id))}><Rocket size={16} /> Release as {next.label}</Button>
+          : <span title={v.status === 'in_review' ? `Needs ${APPROVALS_REQUIRED} approvals · ${n} so far` : `Cannot release while ${v.status.replace('_', ' ')}`}
+              className="inline-flex cursor-not-allowed select-none items-center gap-2 rounded-xl border border-dashed border-white/25 px-4 py-2.5 text-sm font-semibold text-sage-300" aria-disabled="true">
+              <Lock size={14} /> Release · {v.status === 'in_review' ? `needs ${APPROVALS_REQUIRED - n} more approval${APPROVALS_REQUIRED - n === 1 ? '' : 's'}` : v.status.replace('_', ' ')}
+            </span>} />
       {released && <p className="rounded-xl bg-ok/10 p-3 text-sm text-ok">Published and effective now. Rooms already in progress stay on the version they started; new assignments use {released}.</p>}
 
       <Section title={current ? `Changes against current ${current.version}` : 'New SOP — no published version yet'}>

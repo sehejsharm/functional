@@ -9,6 +9,7 @@ import { canAccess } from '@/lib/permissions'
 import { useGrant, useGrants, useSession } from '@/lib/session'
 import type { Portal } from '@/lib/types'
 import { HelpDrawer } from './HelpDrawer'
+import { RouteBoundary } from './RouteBoundary'
 import { LockIcon, NAV, PORTAL_CONTEXT, type NavItem } from './nav'
 
 export function usePersona(portal: Portal) {
@@ -189,12 +190,11 @@ export function PortalShell({ portal, children }: { portal: Portal; children: Re
             <button aria-label="Open menu" onClick={() => setMenu(true)} className="rounded-lg p-2 text-sage-200"><Menu size={20} /></button>
           </div>
         </div>
-        <AnimatePresence mode="wait">
-          <motion.main key={loc.pathname} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}
-            className={clsx('mx-auto w-full flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10', isEmployee ? 'max-w-3xl pb-28 lg:pb-10' : 'max-w-7xl')}>
-            {children}
-          </motion.main>
-        </AnimatePresence>
+        {/* Enter-only fade: no exit wait, so a new screen can never be held back by the old one. */}
+        <motion.main key={loc.pathname} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}
+          className={clsx('mx-auto w-full flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-10', isEmployee ? 'max-w-3xl pb-28 lg:pb-10' : 'max-w-7xl')}>
+          <RouteBoundary resetKey={loc.pathname}>{children}</RouteBoundary>
+        </motion.main>
         {isEmployee && <BottomTabs />}
       </div>
       <Drawer open={menu} onClose={() => setMenu(false)} title="Menu"><div className="-m-5"><Sidebar portal={portal} onNavigate={() => setMenu(false)} /></div></Drawer>
