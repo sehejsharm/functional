@@ -123,7 +123,7 @@ function NextCard({ task, now }: { task: Task; now: number }) {
   const gated = isGated(task, now)
   const nav = useNavigate()
   return (
-    <motion.section layoutId={`task-${task.id}`} className="card-light overflow-hidden">
+    <section className="card-light overflow-hidden">
       <div className="p-5">
         <div className="eyebrow !text-forest-700">Next to do</div>
         <div className="mt-2 flex items-start justify-between gap-3">
@@ -145,7 +145,7 @@ function NextCard({ task, now }: { task: Task; now: number }) {
         <Link to={`/employee/tasks/${task.id}`} className="text-sm font-semibold text-forest-700 hover:underline">See all room steps</Link>
         <Button variant="primary" className="!bg-forest-900" onClick={() => nav(`/employee/tasks/${task.id}`)}>Open room</Button>
       </div>
-    </motion.section>
+    </section>
   )
 }
 
