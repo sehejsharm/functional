@@ -352,8 +352,7 @@ export function CreateSop() {
       )}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <fieldset disabled={readOnly} className="min-w-0 space-y-6">
-          <legend className="sr-only">SOP content</legend>
+        <fieldset disabled={readOnly} aria-label="SOP content" className="min-w-0 space-y-6">
 
           {/* Start from a document */}
           <Card id="import" className={clsx('transition-shadow', highlight && 'shadow-ring-gold')}>

@@ -53,11 +53,11 @@ export function ApprovalMeter({ v, showLabel = true }: { v: SopVersion; showLabe
   const slots = Math.max(APPROVALS_REQUIRED, ids.length)
   return (
     <span className="inline-flex items-center gap-2" aria-label={`${ids.length} of ${APPROVALS_REQUIRED} approvals`}>
-      <span className="flex -space-x-1.5">
+      <span className="flex gap-1">
         {Array.from({ length: slots }, (_, i) => {
           const p = byId(people, ids[i])
-          return p ? <Avatar key={i} name={p.name} size={22} className="ring-2 ring-surface" />
-            : <span key={i} className="grid h-[22px] w-[22px] place-items-center rounded-full border border-dashed border-line-strong bg-surface text-[9px] text-muted ring-2 ring-surface" aria-hidden />
+          return p ? <Avatar key={i} name={p.name} size={24} />
+            : <span key={i} className="grid h-6 w-6 place-items-center rounded-full border border-dashed border-line-strong bg-surface" aria-hidden />
         })}
       </span>
       {showLabel && <span className={clsx('text-xs font-semibold tabular', ids.length >= APPROVALS_REQUIRED ? 'text-ok' : 'text-ink-2')}>{ids.length}/{APPROVALS_REQUIRED}</span>}

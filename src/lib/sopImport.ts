@@ -176,7 +176,7 @@ export function parseSop(lines: TextLine[], roles: JobRole[], fileName = 'docume
     }
     return {
       id: `imp-${stamp}-${i}`,
-      icon: iconFor(head, text),
+      icon: iconFor(rest.length ? head : text.split(/\s+/).slice(0, 2).join(' '), text),
       instruction: instruction.slice(0, 400),
       guestCare,
       requireCheck: /\b(confirm|count|screen|log|verify|reconcile)\w*/i.test(text),
@@ -187,7 +187,7 @@ export function parseSop(lines: TextLine[], roles: JobRole[], fileName = 'docume
   const all = body.map((l) => l.text).join('\n')
   const titleLine = [...body].filter((l) => l.text.length > 3 && l.text.length < 90 && !/^[A-Z\s·,]+$/.test(l.text) && !ITEM.test(l.text)).sort((a, b) => b.size - a.size)[0]
   const title = titleLine?.text ?? fileName.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ')
-  const codeMatch = all.match(codeRe) ?? all.match(/\b([A-Z]{2,5})-([A-Z0-9]{1,6})\b/)
+  const codeMatch = all.match(codeRe) ?? all.match(/\b([A-Z]{2,5}(?:-[A-Z0-9]{1,8}){1,3})\b/)
   const code = codeMatch ? codeMatch.slice(1).filter(Boolean).join('-').toUpperCase()
     : title.split(/\s+/).filter((w) => /^[A-Za-z]/.test(w)).slice(0, 3).map((w) => w[0]).join('').toUpperCase().padEnd(2, 'X') + '-01'
   const minutes = all.match(/within\s+(\d{1,3})\s*min/i)

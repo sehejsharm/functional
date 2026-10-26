@@ -134,7 +134,7 @@ function Overview({ sopId, v, current, view, setView }: { sopId: string; v: SopV
   const st = stats(recent, db.sopVersions, now)
   const done = recent.filter((t) => t.status === 'done' && t.startedAt && t.completedAt)
   const avgMin = done.length ? Math.round((done.reduce((a, t) => a + minutesBetween(t.startedAt!, t.completedAt!), 0) / done.length) * 10) / 10 : null
-  const perDay = Array.from({ length: 14 }, (_, i) => { const k = hotelDateKey(now - (13 - i) * DAY); return recent.filter((t) => hotelDateKey(t.start) === k).length })
+  const perDay = Array.from({ length: 14 }, (_, i) => { const k = hotelDateKey(now - (14 - i) * DAY); return recent.filter((t) => hotelDateKey(t.start) === k).length })
   const ack = ackRate(db, current)
   const role = db.jobRoles.find((r) => r.id === v.jobRoleId)
   const audience = db.people.filter((p) => p.jobRoleId === v.jobRoleId && p.status !== 'inactive')
@@ -145,8 +145,14 @@ function Overview({ sopId, v, current, view, setView }: { sopId: string; v: SopV
     <div className="grid gap-6 xl:grid-cols-3">
       <div className="space-y-6 xl:col-span-2">
         <Card>
-          <CardHeader icon={BookOpenText} title={`Steps · v${v.version}`} description={`${v.steps.length} steps · ${checks} independent check${checks === 1 ? '' : 's'} · ${v.steps.filter((s) => s.allowPhoto).length} with photo`}
-            actions={<Segmented size="sm" value={view} onChange={setView} items={[{ id: 'document', label: <span className="inline-flex items-center gap-1"><FileText size={13} /> Document</span> }, { id: 'staff', label: <span className="inline-flex items-center gap-1"><Smartphone size={13} /> As staff see it</span> }]} />} />
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-cell bg-forest-50 text-forest-700"><BookOpenText size={16} /></span>
+              <div className="min-w-0"><h2 className="text-[15px] font-semibold text-ink">Steps · v{v.version}</h2>
+                <p className="mt-0.5 text-xs text-muted">{v.steps.length} steps · {checks} independent check{checks === 1 ? '' : 's'} · {v.steps.filter((s) => s.allowPhoto).length} with photo</p></div>
+            </div>
+            <Segmented size="sm" value={view} onChange={setView} items={[{ id: 'document', label: <span className="inline-flex items-center gap-1"><FileText size={13} /> Document</span> }, { id: 'staff', label: <span className="inline-flex items-center gap-1"><Smartphone size={13} /> As staff see it</span> }]} />
+          </div>
           <div className="p-5">
             {view === 'document' ? <StepDocument steps={v.steps} /> : <div className="py-2"><StaffPreview steps={v.steps} version={v.version} title={v.title} minutes={v.timeTargetMin} roleName={role?.name} /></div>}
           </div>

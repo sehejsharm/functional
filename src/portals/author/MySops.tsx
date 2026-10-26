@@ -51,16 +51,17 @@ export function MySops() {
   const columns: Column<SopRow>[] = [
     { key: 'sop', header: 'SOP', sort: (r) => r.code, csv: (r) => `${r.code} — ${r.title}`,
       cell: (r) => (
-        <div className="min-w-[180px] max-w-[280px]">
+        <div className="min-w-[160px] max-w-[280px]">
           <div className="font-mono text-xs font-semibold text-forest-800">{r.code}</div>
           <div className="truncate font-medium text-ink" title={r.title}>{r.title}</div>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 md:hidden"><VersionTag label={r.version} draft={!r.current && r.status !== 'retired' && r.status !== 'rejected'} /><RowStatusBadge status={r.status} /></div>
         </div>
       ) },
     { key: 'department', header: 'Department', sort: (r) => r.department, hideOnMobile: true,
       cell: (r) => <div className="leading-tight"><div className="text-ink-2">{r.department}</div><div className="mt-0.5 text-xs text-muted">{db.jobRoles.find((j) => j.id === r.roleId)?.name}</div></div> },
-    { key: 'version', header: 'Version', sort: (r) => Number(r.version) || 0, csv: (r) => r.version,
+    { key: 'version', header: 'Version', sort: (r) => Number(r.version) || 0, csv: (r) => r.version, hideOnMobile: true,
       cell: (r) => <VersionTag label={r.version} draft={!r.current && r.status !== 'retired' && r.status !== 'rejected'} /> },
-    { key: 'status', header: 'Status', sort: (r) => r.status, csv: (r) => r.status,
+    { key: 'status', header: 'Status', sort: (r) => r.status, csv: (r) => r.status, hideOnMobile: true,
       cell: (r) => (
         <div className="flex flex-col items-start gap-1">
           <RowStatusBadge status={r.status} />
@@ -138,7 +139,7 @@ export function MySops() {
           <StatCard label="In review" value={inReview.length} icon={GitPullRequestArrow} hint={ready ? `${ready} ready to release` : 'awaiting approvals'} to="/author/reviews" />
           <StatCard label="Changes requested · drafts" value={`${changes} · ${drafts}`} icon={FilePen} hint="not visible to staff" />
           <StatCard label="Retired" value={counts.retired} icon={Archive} hint="kept for history" />
-          <StatCard label="Avg acknowledgment" value={avgAck} unit="%" icon={ShieldCheck} hint={`across ${live.length} live SOPs`} />
+          <div className="col-span-2 lg:col-span-1"><StatCard label="Avg acknowledgment" value={avgAck} unit="%" icon={ShieldCheck} hint={`across ${live.length} live SOPs`} /></div>
         </>}
       </div>
 

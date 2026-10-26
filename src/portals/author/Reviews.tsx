@@ -132,7 +132,7 @@ export function VersionReview() {
       if (r == null) return
       text = r
     }
-    db.review(v.id, { reviewerId: reviewer, decision, comment: text || 'Approved.' })
+    db.review(v.id, { reviewerId: reviewer, decision, comment: text })
     setComment('')
     const after = byId(useDB.getState().sopVersions, v.id)!
     if (decision === 'approve') {

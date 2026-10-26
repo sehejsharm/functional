@@ -63,15 +63,15 @@ export function UseResults() {
     <div className="space-y-6">
       <PageHeader eyebrow="Insights" title="Use & results" description="Is the SOP working on the floor? Volume, timing and verification for each version, from real task records."
         actions={<>
-          <Select aria-label="SOP" className="h-9 w-full py-1.5 sm:w-72" value={sopId} onChange={(e) => setSopId(e.target.value)}>
+          <Select aria-label="SOP" className="h-9 w-full py-1.5 sm:w-80" value={sopId} onChange={(e) => setSopId(e.target.value)}>
             {options.map((r) => <option key={r.sopId} value={r.sopId}>{r.code} · {r.title}</option>)}
           </Select>
           <Button icon={Download} onClick={exportDaily} disabled={!all.length}>Export</Button>
         </>} />
       {!all.length ? <Card><EmptyState icon={Activity} title="No task history for this SOP yet" description="Results appear once managers assign it and staff complete rooms with it." /></Card> : <>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <StatCard label="Tasks run · 14 days" value={recent.length} icon={PlayCircle} trend={perDay} />
-          <StatCard label="On time" value={st.onTimePct} unit="%" icon={Timer} trend={daily.map((d) => d.onTimePct)} hint={`${done.length} finished`} />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <StatCard label="Tasks · 14 days" value={recent.length} icon={PlayCircle} trend={perDay} />
+          <StatCard label="On time" value={st.onTimePct} unit="%" icon={Timer} hint={`${done.length} finished in 14 days`} />
           <StatCard label="Avg duration" value={avgMin ?? '—'} unit={avgMin != null ? 'min' : undefined} icon={FileClock} hint={`target ${target} min`} />
           <StatCard label="Verification pass" value={st.verifyPassPct} unit="%" icon={BadgeCheck} hint="first time" />
           <StatCard label="Acknowledged" value={row?.ack.pct ?? '—'} unit={row?.ack.pct != null ? '%' : undefined} icon={ShieldCheck} hint={row?.current ? `${row.ack.acked} of ${row.ack.audience} staff` : undefined} />
