@@ -1,0 +1,43 @@
+/* Mise design tokens. Channels are space-separated RGB so Tailwind can apply alpha. */
+:root {
+  --forest-950: 7 31 22;      /* #071F16 edge */
+  --forest-900: 11 42 30;     /* #0B2A1E */
+  --forest-800: 20 58 40;     /* #143A28 */
+  --forest-700: 30 76 54;
+  --forest-600: 44 98 71;
+  --gold-400: 220 188 112;
+  --gold-500: 201 162 75;     /* #C9A24B */
+  --gold-600: 172 136 56;
+  --sage-50: 242 245 239;     /* #F2F5EF */
+  --sage-100: 234 240 234;    /* #EAF0EA */
+  --sage-200: 214 225 214;
+  --sage-300: 184 201 186;
+  --cream: 250 243 226;
+  --ink: 16 32 24;
+  --muted: 92 112 100;
+  --danger: 214 92 76;
+  --amber: 222 160 60;
+  --ok: 92 178 120;
+
+  --radius-card: 18px;
+  --radius-cell: 10px;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 10px 30px -12px rgb(0 0 0 / 0.55);
+  --shadow-lift: 0 20px 50px -18px rgb(0 0 0 / 0.7);
+
+  /* Portal density: employee is roomy, manager/author are dense. */
+  --density: 1;
+  color-scheme: dark;
+}
+[data-portal='manager'], [data-portal='author'] { --density: 0.85; }
+
+.brand-sheen {
+  background-color: rgb(var(--forest-900));
+  background-image:
+    radial-gradient(120% 80% at 15% 0%, rgb(var(--forest-700) / 0.55), transparent 60%),
+    linear-gradient(135deg, transparent 35%, rgb(255 255 255 / 0.035) 50%, transparent 65%),
+    radial-gradient(140% 120% at 100% 100%, rgb(var(--forest-950)), transparent 70%);
+}
+.noise::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.06; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}

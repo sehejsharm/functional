@@ -1,0 +1,46 @@
+rules_version = '2';
+// Server-side enforcement of the same model the client guards mirror.
+// Role grants live in custom claims: request.auth.token.grants = { "<propertyId>": { employee: "base", manager: "senior", author: "base" } }
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function g(pid) { return request.auth != null ? request.auth.token.grants[pid] : null; }
+    function has(pid, portal) { return g(pid) != null && portal in g(pid); }
+    function tierAtLeast(pid, portal, t) {
+      let rank = {'base': 0, 'senior': 1, 'admin': 2};
+      return has(pid, portal) && rank[g(pid)[portal]] >= rank[t];
+    }
+    function anyRole(pid) { return has(pid, 'employee') || has(pid, 'manager') || has(pid, 'author'); }
+
+    match /properties/{pid} {
+      allow read: if anyRole(pid);
+      allow write: if tierAtLeast(pid, 'author', 'admin');
+
+      // Published SOP versions are immutable; drafts are author-only; releases require 2 approvals (enforced by a Cloud Function).
+      match /sopVersions/{vid} {
+        allow read: if anyRole(pid);
+        allow create, update: if has(pid, 'author') && resource == null || (has(pid, 'author') && resource.data.status in ['draft', 'changes_requested', 'in_review']);
+        allow delete: if has(pid, 'author') && resource.data.status == 'draft';
+      }
+      match /tasks/{tid} {
+        allow read: if has(pid, 'manager') || (has(pid, 'employee') && resource.data.personId == request.auth.token.personId);
+        allow create: if has(pid, 'manager');
+        // Employees may tick steps on their own task but never change the pinned sopVersionId.
+        allow update: if has(pid, 'manager') || (has(pid, 'employee') && resource.data.personId == request.auth.token.personId
+          && request.resource.data.sopVersionId == resource.data.sopVersionId);
+      }
+      match /ackEvents/{id} {
+        allow create, update: if anyRole(pid) && request.resource.data.personId == request.auth.token.personId;
+        allow read: if tierAtLeast(pid, 'manager', 'senior') || resource.data.personId == request.auth.token.personId;
+      }
+      match /audit/{id} {
+        allow create: if anyRole(pid);
+        allow read: if tierAtLeast(pid, 'manager', 'senior');
+        allow update, delete: if false; // append-only
+      }
+      match /{coll}/{id} {
+        allow read: if anyRole(pid);
+        allow write: if has(pid, 'manager') || has(pid, 'author');
+      }
+    }
+  }
+}

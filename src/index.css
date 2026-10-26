@@ -1,0 +1,18 @@
+@import './theme/tokens.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body { @apply bg-forest-900 text-sage-50 font-sans antialiased; }
+  :focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(var(--gold-500) / 0.55); border-radius: 8px; }
+  h1, h2, h3 { @apply font-display tracking-tight; }
+}
+@layer components {
+  .card { @apply rounded-card bg-forest-800/70 border border-white/5 shadow-card; }
+  .card-light { @apply rounded-card bg-sage-50 text-ink shadow-card; }
+  .input { @apply w-full rounded-xl bg-sage-100 text-ink placeholder:text-muted px-3 py-2.5 text-sm border border-transparent focus:border-gold-500 focus:shadow-ring outline-none transition; }
+  .label { @apply block text-xs font-semibold uppercase tracking-wider text-sage-300 mb-1.5; }
+  .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-400; }
+}

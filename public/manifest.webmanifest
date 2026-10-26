@@ -1,0 +1,9 @@
+{
+  "name": "Mise Staff",
+  "short_name": "Mise",
+  "start_url": "/employee",
+  "display": "standalone",
+  "background_color": "#0B2A1E",
+  "theme_color": "#0B2A1E",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
