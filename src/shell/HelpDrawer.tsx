@@ -31,16 +31,24 @@ export function HelpDrawer({ open, onClose, portal }: { open: boolean; onClose: 
   const items = useMemo(() => FAQ[portal].filter((f) => (f.q + f.a).toLowerCase().includes(q.toLowerCase())), [portal, q])
   const [sent, setSent] = useState(false)
   return (
-    <Drawer open={open} onClose={onClose} title="Help">
+    <Drawer open={open} onClose={onClose} title="Help & shortcuts" description="Answers for this portal. Press ⌘K anywhere to search.">
       <SearchBox value={q} onChange={setQ} placeholder="Search help" />
       <ul className="mt-4 space-y-3">
         {items.map((f) => (
-          <li key={f.q} className="card p-4"><div className="font-semibold text-white">{f.q}</div><p className="mt-1 text-sm text-sage-300">{f.a}</p></li>
+          <li key={f.q} className="card-inset p-4"><div className="text-sm font-semibold text-ink">{f.q}</div><p className="mt-1 text-sm text-ink-2">{f.a}</p></li>
         ))}
-        {!items.length && <li className="text-sm text-sage-300">No answers match. Try other words, or contact support.</li>}
+        {!items.length && <li className="text-sm text-muted">No answers match. Try other words, or contact support.</li>}
       </ul>
-      <Button variant="primary" className="mt-6 w-full" onClick={() => setSent(true)} disabled={sent}>
-        <LifeBuoy size={16} /> {sent ? 'Support has been notified' : 'Contact support'}
+      <div className="mt-6 rounded-card border border-line p-4">
+        <div className="text-sm font-semibold text-ink">Keyboard shortcuts</div>
+        <dl className="mt-2 grid grid-cols-[1fr_auto] gap-y-1.5 text-sm text-ink-2">
+          <dt>Search everything</dt><dd><kbd className="kbd">⌘</kbd> <kbd className="kbd">K</kbd></dd>
+          <dt>Quick search</dt><dd><kbd className="kbd">/</kbd></dd>
+          <dt>Close a panel</dt><dd><kbd className="kbd">Esc</kbd></dd>
+        </dl>
+      </div>
+      <Button variant="primary" icon={LifeBuoy} block className="mt-4" onClick={() => setSent(true)} disabled={sent}>
+        {sent ? 'Support has been notified' : 'Contact support'}
       </Button>
     </Drawer>
   )

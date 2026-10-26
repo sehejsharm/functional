@@ -48,8 +48,8 @@ export function LoginScreen() {
         </div>
 
         <div className="relative z-10 mx-auto my-auto w-full max-w-md py-10">
-          <div className="eyebrow mb-3">Aurora Grand Colombo</div>
-          <h1 className="mb-3 text-5xl font-bold leading-[1.02] text-white sm:text-6xl">Every shift,<br />a little better.</h1>
+          <div className="mb-3 text-2xs font-semibold uppercase tracking-[0.16em] text-gold-400">Aurora Grand Colombo</div>
+          <h1 className="mb-3 font-display text-5xl font-bold leading-[1.02] text-white sm:text-6xl">Every shift,<br />a little better.</h1>
           <p className="mb-8 text-sage-300">Step inside your hotel workspace.</p>
 
           <form onSubmit={(e) => { e.preventDefault(); submit() }}>

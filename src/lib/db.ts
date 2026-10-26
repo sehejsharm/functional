@@ -4,7 +4,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { buildSeed, type Seed } from './seed'
-import type { AttendanceMark, CoverItem, FeedbackLane, Notice, Priority, ReviewDecision, SopStep, SopVersion, Task } from './types'
+import type { AttendanceMark, CoverItem, FeedbackLane, Issue, IssueCategory, IssueSeverity, IssueStatus, Notice, Priority, ReviewDecision, SopStep, SopVersion, Task } from './types'
 import { hotelDateKey, iso } from './time'
 
 const uid = (p: string) => `${p}-${Math.random().toString(36).slice(2, 9)}`
@@ -29,14 +29,24 @@ interface Actions {
   requestVerification: (taskId: string) => void
   verifyTask: (taskId: string, actorId: string) => void
   markUrgentSeen: (taskId: string) => void
-  reportIssue: (taskId: string, personId: string, text: string) => void
+  /** Raises an incident (from a room or free-standing). Returns the created issue. */
+  reportIssue: (taskId: string | null, personId: string, text: string, o?: { category?: IssueCategory; severity?: IssueSeverity; title?: string; roomId?: string }) => Issue
+  updateIssue: (id: string, actorId: string, patch: { status?: IssueStatus; assignedToId?: string | null; note?: string; severity?: IssueSeverity }) => void
+  /** Verifier sends a room back to the employee with a reason. */
+  returnTask: (taskId: string, actorId: string, note: string) => boolean
+  cancelTask: (taskId: string, actorId: string, reason: string) => boolean
+  /** Moves a not-yet-finished room to another person; progress is kept. */
+  reassignTask: (taskId: string, personId: string, actorId: string) => boolean
   checkIn: (personId: string, mark?: AttendanceMark) => void
   endShift: (personId: string, early: boolean) => void
 
   openRef: (personId: string, kind: 'sop' | 'notice', refId: string) => void
   acknowledge: (personId: string, kind: 'sop' | 'notice', refId: string, reply?: string) => void
 
-  assignTask: (t: Pick<Task, 'shiftId' | 'personId' | 'roomId' | 'start' | 'end' | 'priority' | 'assignedById'> & { sopId: string }) => Task | null
+  assignTask: (t: Pick<Task, 'shiftId' | 'personId' | 'roomId' | 'start' | 'end' | 'priority' | 'assignedById'> & { sopId: string; notes?: string }) => Task | null
+  /** Why a room can't take this assignment right now, or null when it can. */
+  assignBlocker: (t: { sopId: string; roomId: string; shiftId: string; start: string }) => string | null
+  bulkAssign: (items: (Pick<Task, 'shiftId' | 'personId' | 'roomId' | 'start' | 'end' | 'priority' | 'assignedById'> & { sopId: string; notes?: string })[]) => { created: Task[]; skipped: { roomId: string; reason: string }[] }
   setTaskMode: (taskId: string, mode: Task['mode']) => void
   decideCover: (id: string, status: CoverItem['status']) => void
   approveBackup: (o: { shiftId: string; date: string; personId: string; backupId: string }) => void
@@ -51,6 +61,8 @@ interface Actions {
   release: (versionId: string, actorId: string) => string | null
   addFeedback: (lane: FeedbackLane, sopVersionId: string, fromId: string, text: string, o?: { stepId?: string; rating?: number }) => void
   resolveFeedback: (id: string) => void
+  retireSop: (sopId: string, actorId: string) => void
+  restoreSop: (sopId: string, actorId: string) => void
 }
 
 export type DB = Seed & { connection: Connection; outbox: OutboxItem[]; seededFor: string } & Actions
@@ -110,21 +122,65 @@ export const useDB = create<DB>()(
           if (!required.every((s) => t.doneStepIds.includes(s.id))) return
           // Only SOPs with recorded checks need an independent verifier; the rest finish here.
           if (v.steps.some((s) => s.requireCheck)) {
-            patchTask(id, () => ({ status: 'awaiting_verification' }))
+            patchTask(id, () => ({ status: 'awaiting_verification', returned: undefined }))
             get().log(t.personId, 'task.verification_requested', id)
           } else {
-            patchTask(id, () => ({ status: 'done', completedAt: nowIso() }))
+            patchTask(id, () => ({ status: 'done', completedAt: nowIso(), returned: undefined }))
             get().log(t.personId, 'task.completed', id)
           }
         },
         verifyTask: (id, actorId) => {
           const t = get().tasks.find((x) => x.id === id)
           if (!t || t.status !== 'awaiting_verification' || t.personId === actorId) return
-          patchTask(id, () => ({ status: 'done', completedAt: nowIso() }))
+          patchTask(id, () => ({ status: 'done', completedAt: nowIso(), verifiedById: actorId, verifiedAt: nowIso() }))
           get().log(actorId, 'task.verified', id)
         },
         markUrgentSeen: (id) => patchTask(id, (t) => ({ urgentEnded: t.urgentEnded && { ...t.urgentEnded, seen: true } })),
-        reportIssue: (id, personId, text) => get().log(personId, 'task.issue_reported', `${id}: ${text}`),
+        reportIssue: (taskId, personId, text, o = {}) => {
+          const t = taskId ? get().tasks.find((x) => x.id === taskId) : undefined
+          const at = nowIso()
+          const issue: Issue = {
+            id: uid('is'), propertyId: get().properties[0].id, taskId: taskId ?? undefined, roomId: o.roomId ?? t?.roomId, reportedById: personId,
+            category: o.category ?? 'other', severity: o.severity ?? 'medium', title: (o.title ?? text).slice(0, 80), text,
+            status: 'open', at, updates: [{ at, byId: personId, text: 'Reported', status: 'open' }],
+          }
+          set((s) => ({ issues: [issue, ...s.issues] }))
+          get().log(personId, 'issue.reported', `${issue.title}${t ? ` · ${taskId}` : ''}`)
+          return issue
+        },
+        updateIssue: (id, actorId, { status, assignedToId, note, severity }) => {
+          const at = nowIso()
+          set((s) => ({
+            issues: s.issues.map((i) => i.id !== id ? i : {
+              ...i, ...(status ? { status } : {}), ...(severity ? { severity } : {}),
+              ...(assignedToId !== undefined ? { assignedToId: assignedToId ?? undefined } : {}),
+              ...(status === 'resolved' ? { resolvedAt: at, resolvedById: actorId } : status ? { resolvedAt: undefined, resolvedById: undefined } : {}),
+              updates: [...i.updates, { at, byId: actorId, text: note || (status ? `Status → ${status.replace('_', ' ')}` : assignedToId !== undefined ? 'Reassigned' : 'Updated'), status }],
+            }),
+          }))
+          get().log(actorId, `issue.${status ?? 'updated'}`, id)
+        },
+        returnTask: (id, actorId, note) => {
+          const t = get().tasks.find((x) => x.id === id)
+          if (!t || t.status !== 'awaiting_verification' || t.personId === actorId || !note.trim()) return false
+          patchTask(id, () => ({ status: 'in_progress', returned: { byId: actorId, at: nowIso(), note: note.trim() } }))
+          get().log(actorId, 'task.returned', `${id}: ${note.trim()}`)
+          return true
+        },
+        cancelTask: (id, actorId, reason) => {
+          const t = get().tasks.find((x) => x.id === id)
+          if (!t || t.status === 'done' || t.status === 'cancelled') return false
+          patchTask(id, () => ({ status: 'cancelled', cancelled: { byId: actorId, at: nowIso(), reason } }))
+          get().log(actorId, 'task.cancelled', `${id}: ${reason}`)
+          return true
+        },
+        reassignTask: (id, personId, actorId) => {
+          const t = get().tasks.find((x) => x.id === id)
+          if (!t || t.status === 'done' || t.status === 'cancelled' || t.personId === personId) return false
+          patchTask(id, () => ({ personId, assignedById: actorId }))
+          get().log(actorId, 'task.reassigned', `${id} → ${personId}`)
+          return true
+        },
         checkIn: (personId, mark = 'checkin') => {
           if (offline()) {
             set((s) => ({ connection: { ...s.connection, checkin: 'attention' }, outbox: [...s.outbox, { id: uid('ob'), kind: 'checkin', at: nowIso() }] }))
@@ -165,15 +221,34 @@ export const useDB = create<DB>()(
           get().log(personId, `${kind}.acknowledged`, refId)
         },
 
-        assignTask: ({ sopId, ...t }) => {
+        assignBlocker: ({ sopId, roomId, shiftId, start }) => {
           const sop = get().sops.find((s) => s.id === sopId)
-          if (!sop?.currentVersionId) return null
+          if (!sop?.currentVersionId) return 'This SOP has no published version'
+          if (sop.retiredAt) return 'This SOP is retired'
           const v = get().sopVersions.find((x) => x.id === sop.currentVersionId)
-          if (v?.status !== 'published') return null
+          if (v?.status !== 'published') return 'This SOP has no published version'
+          const room = get().rooms.find((r) => r.id === roomId)
+          if (room?.occupancy === 'out_of_order') return `Room ${room.number} is out of order`
           // One open task per room per shift.
-          if (get().tasks.some((x) => x.roomId === t.roomId && x.shiftId === t.shiftId && x.status !== 'done' && hotelDateKey(x.start) === hotelDateKey(t.start))) return null
+          if (get().tasks.some((x) => x.roomId === roomId && x.shiftId === shiftId && x.status !== 'done' && x.status !== 'cancelled' && hotelDateKey(x.start) === hotelDateKey(start)))
+            return `Room ${room?.number ?? roomId} already has open work on this shift`
+          return null
+        },
+        bulkAssign: (items) => {
+          const created: Task[] = [], skipped: { roomId: string; reason: string }[] = []
+          for (const it of items) {
+            const why = get().assignBlocker(it)
+            if (why) { skipped.push({ roomId: it.roomId, reason: why }); continue }
+            const t = get().assignTask(it)
+            if (t) created.push(t); else skipped.push({ roomId: it.roomId, reason: 'Could not be assigned' })
+          }
+          return { created, skipped }
+        },
+        assignTask: ({ sopId, ...t }) => {
+          if (get().assignBlocker({ sopId, roomId: t.roomId, shiftId: t.shiftId, start: t.start })) return null
+          const sop = get().sops.find((s) => s.id === sopId)!
           const task: Task = {
-            ...t, id: uid('t'), propertyId: get().properties[0].id, sopVersionId: sop.currentVersionId, status: 'scheduled',
+            ...t, id: uid('t'), propertyId: get().properties[0].id, sopVersionId: sop.currentVersionId!, status: 'scheduled',
             doneStepIds: [], photoStepIds: [], mode: 'guided', reviewedVersionConfirmed: true,
           }
           set((s) => ({ tasks: [...s.tasks, task] }))
@@ -263,10 +338,18 @@ export const useDB = create<DB>()(
         addFeedback: (lane, sopVersionId, fromId, text, o = {}) =>
           set((s) => ({ feedback: [{ id: uid('f'), propertyId: s.properties[0].id, lane, sopVersionId, fromId, text, at: nowIso(), status: 'open', ...o }, ...s.feedback] })),
         resolveFeedback: (id) => set((s) => ({ feedback: s.feedback.map((f) => (f.id === id ? { ...f, status: 'done' } : f)) })),
+        retireSop: (sopId, actorId) => {
+          set((s) => ({ sops: s.sops.map((x) => (x.id === sopId ? { ...x, retiredAt: nowIso(), retiredById: actorId } : x)) }))
+          get().log(actorId, 'sop.retired', get().sops.find((x) => x.id === sopId)?.code ?? sopId)
+        },
+        restoreSop: (sopId, actorId) => {
+          set((s) => ({ sops: s.sops.map((x) => (x.id === sopId ? { ...x, retiredAt: undefined, retiredById: undefined } : x)) }))
+          get().log(actorId, 'sop.restored', get().sops.find((x) => x.id === sopId)?.code ?? sopId)
+        },
       }
     },
     {
-      name: 'mise-db-v2',
+      name: 'mise-db-v3',
       partialize: (s) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { connection: _c, ...rest } = s
@@ -281,7 +364,7 @@ if (useDB.getState().seededFor !== hotelDateKey()) useDB.getState().reset()
 
 // Cross-tab "real-time": another tab's write lands here without a reload.
 if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => { if (e.key === 'mise-db-v2') useDB.persist.rehydrate() })
+  window.addEventListener('storage', (e) => { if (e.key === 'mise-db-v3') useDB.persist.rehydrate() })
   window.addEventListener('online', () => useDB.getState().setConnection({ hotel: 'online' }))
   window.addEventListener('offline', () => useDB.getState().setConnection({ hotel: 'offline' }))
 }

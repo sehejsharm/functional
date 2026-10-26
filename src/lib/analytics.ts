@@ -9,7 +9,7 @@ export function stats(tasks: Task[], versions: SopVersion[], now = Date.now()): 
   const target = (t: Task) => versions.find((v) => v.id === t.sopVersionId)?.timeTargetMin ?? 27
   const durations = done.map((t) => minutesBetween(t.startedAt!, t.completedAt!) - target(t))
   const onTime = durations.filter((d) => d <= 0).length
-  const overdue = tasks.filter((t) => t.status !== 'done' && Date.parse(t.end) < now).length + tasks.filter((t) => t.priority === 'urgent').length
+  const overdue = tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled' && Date.parse(t.end) < now).length
   const checked = tasks.filter((t) => t.status === 'done' || t.status === 'awaiting_verification')
   return {
     completed: done.length,

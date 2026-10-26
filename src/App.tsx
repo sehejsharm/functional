@@ -2,6 +2,7 @@ import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { LoginScreen } from './auth/LoginScreen'
 import { RequirePortal, TierGate } from './shell/Guards'
 import { PortalShell, SwitchingOverlay } from './shell/PortalShell'
+import { ConfirmHost, Toaster } from './components/ui'
 import { ScreensDirectory } from './shell/ScreensDirectory'
 import { useSession } from './lib/session'
 import type { Portal, Tier } from './lib/types'
@@ -9,6 +10,12 @@ import { EmployeeWork } from './portals/employee/Work'
 import { TaskDetail } from './portals/employee/TaskDetail'
 import { EmployeeGuides } from './portals/employee/Guides'
 import { EmployeeMe } from './portals/employee/Me'
+import { EmployeeReports } from './portals/employee/Reports'
+import { EmployeeGuideDetail } from './portals/employee/GuideDetail'
+import { ManagerTasks } from './portals/manager/Tasks'
+import { Incidents } from './portals/manager/Incidents'
+import { StaffDirectory } from './portals/manager/Staff'
+import { SopDetail } from './portals/author/SopDetail'
 import { AssignRooms } from './portals/manager/AssignRooms'
 import { ShiftCover } from './portals/manager/ShiftCover'
 import { AcknowledgmentLedger } from './portals/manager/Ledger'
@@ -34,6 +41,8 @@ export default function App() {
   return (
     <>
       <SwitchingOverlay />
+      <Toaster />
+      <ConfirmHost />
       <Routes>
         <Route path="/" element={accountId && portal ? <Navigate to={`/${portal}`} replace /> : <LoginScreen />} />
         <Route path="/screens" element={<ScreensDirectory />} />
@@ -41,11 +50,16 @@ export default function App() {
           <Route index element={<EmployeeWork />} />
           <Route path="tasks/:id" element={<TaskDetail />} />
           <Route path="guides" element={<EmployeeGuides />} />
+          <Route path="guides/:sopId" element={<EmployeeGuideDetail />} />
+          <Route path="reports" element={<EmployeeReports />} />
           <Route path="me" element={<EmployeeMe />} />
         </Route>
         <Route path="/manager" element={<PortalLayout portal="manager" />}>
           <Route index element={<ManagerOverview />} />
+          <Route path="tasks" element={<ManagerTasks />} />
           <Route path="assign-rooms" element={<AssignRooms />} />
+          <Route path="incidents" element={<Incidents />} />
+          <Route path="staff" element={<StaffDirectory />} />
           <Route path="shift-cover" element={<ShiftCover />} />
           <Route path="acknowledgments" element={gate('manager', 'senior', 'Acknowledgment ledger', <AcknowledgmentLedger />)} />
           <Route path="notices" element={<HotelNotices />} />
@@ -64,6 +78,7 @@ export default function App() {
           <Route index element={<MySops />} />
           <Route path="new" element={<CreateSop />} />
           <Route path="edit/:id" element={<CreateSop />} />
+          <Route path="sops/:sopId" element={<SopDetail />} />
           <Route path="feedback" element={<FeedbackRequests />} />
           <Route path="reviews" element={<ReviewsReleases />} />
           <Route path="reviews/:id" element={<VersionReview />} />

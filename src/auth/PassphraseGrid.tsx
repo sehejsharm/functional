@@ -28,7 +28,7 @@ export function PassphraseGrid({ length, value, onChange, onSubmit, error }: {
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
-        <label htmlFor="passkey" className="label !mb-0">Hotel passkey</label>
+        <label htmlFor="passkey" className="label !mb-0 !text-sage-200">Hotel passkey</label>
         <button type="button" onClick={() => setShow((s) => !s)} className="flex items-center gap-1 text-xs text-sage-300 hover:text-white"
           aria-pressed={show} aria-controls="passkey">
           {show ? <EyeOff size={14} /> : <Eye size={14} />} {show ? 'Hide' : 'Show'}

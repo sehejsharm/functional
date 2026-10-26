@@ -16,6 +16,8 @@ export interface JobRole { id: string; propertyId: string; name: string; team: s
 export interface Person {
   id: string; propertyId: string; name: string; initials: string; jobRoleId: string; title: string
   catalogue: CatalogueId[]
+  employeeNo?: string; email?: string; phone?: string; hiredAt?: string; languages?: string[]
+  status?: 'active' | 'on_leave' | 'inactive'
 }
 
 export type CatalogueId = 'pilot' | 'whole'
@@ -43,17 +45,25 @@ export interface SopVersion {
   catalogue: CatalogueId[]
 }
 
-export interface Sop { id: string; propertyId: string; code: string; currentVersionId: string | null }
+export interface Sop {
+  id: string; propertyId: string; code: string; currentVersionId: string | null
+  /** Retired SOPs stay readable for history but can't be assigned. */
+  retiredAt?: string; retiredById?: string; department?: string
+}
 
 export interface Shift {
   id: string; propertyId: string; name: 'Morning' | 'Afternoon' | 'Night'; start: string; end: string; staffTarget: number
   team: string; memberIds: string[]
 }
 
-export interface Room { id: string; propertyId: string; number: string; floor: number; wing: string; yesterdayAttendantId?: string }
+export type Occupancy = 'vacant_clean' | 'vacant_dirty' | 'occupied' | 'due_out' | 'arrival' | 'out_of_order'
+export interface Room {
+  id: string; propertyId: string; number: string; floor: number; wing: string; yesterdayAttendantId?: string
+  type?: string; occupancy?: Occupancy; vip?: boolean; guestName?: string
+}
 
 export type Priority = 'standard' | 'high' | 'urgent'
-export type TaskStatus = 'scheduled' | 'ready' | 'in_progress' | 'awaiting_verification' | 'done'
+export type TaskStatus = 'scheduled' | 'ready' | 'in_progress' | 'awaiting_verification' | 'done' | 'cancelled'
 
 export interface Task {
   id: string; propertyId: string; shiftId: string; personId: string; roomId: string
@@ -65,6 +75,22 @@ export interface Task {
   startedAt?: string; completedAt?: string
   urgentEnded?: { at: string; reason: string; seen: boolean }
   assignedById: string; reviewedVersionConfirmed: boolean
+  verifiedById?: string; verifiedAt?: string
+  /** Set when a verifier sends the room back; cleared when the employee resubmits. */
+  returned?: { byId: string; at: string; note: string }
+  cancelled?: { byId: string; at: string; reason: string }
+  notes?: string
+}
+
+export type IssueCategory = 'guest' | 'maintenance' | 'supplies' | 'safety' | 'lost_found' | 'other'
+export type IssueSeverity = 'low' | 'medium' | 'high' | 'critical'
+export type IssueStatus = 'open' | 'in_progress' | 'resolved'
+export interface Issue {
+  id: string; propertyId: string; taskId?: string; roomId?: string; reportedById: string
+  category: IssueCategory; severity: IssueSeverity; title: string; text: string
+  status: IssueStatus; at: string; assignedToId?: string
+  updates: { at: string; byId: string; text: string; status?: IssueStatus }[]
+  resolvedAt?: string; resolvedById?: string
 }
 
 export type AckKind = 'sop' | 'notice'
@@ -76,6 +102,7 @@ export interface AckEvent {
 export interface Notice {
   id: string; propertyId: string; title: string; body: string; replyNeeded: boolean; sample: boolean
   audience: 'team' | 'people'; teamShiftId?: string; recipientIds: string[]; sentAt: string | null; sentById?: string
+  priority?: 'normal' | 'important' | 'urgent'; expiresAt?: string
 }
 
 export type AttendanceMark = 'checkin' | 'extra' | 'pending'

@@ -24,17 +24,17 @@ export function TierGate({ portal, need, feature, children }: { portal: Portal; 
     <div>
       <PageHeader title={feature} />
       <div className="card mx-auto max-w-xl p-8 text-center">
-        <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full border border-gold-500/40 bg-forest-900 text-gold-400"><Lock size={22} /></span>
-        <h2 className="text-2xl font-bold text-white">{feature} needs {tierLabel[need]} access</h2>
-        <p className="mt-2 text-sage-300">
+        <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-gold-50 text-gold-700 ring-8 ring-gold-50/50"><Lock size={22} /></span>
+        <h2 className="text-xl font-semibold text-ink">{feature} needs {tierLabel[need]} access</h2>
+        <p className="mt-2 text-sm text-ink-2">
           You are signed in as a {tierLabel[grant?.tier ?? 'base']}. This screen holds the property's compliance and cross-shift data,
           so it is reserved for whoever owns that for {`the property`}.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <Button variant="gold" disabled={requested} onClick={() => setRequested(true)}>{requested ? 'Request sent to your property admin' : 'Request access'}</Button>
-          <Link to="/screens"><Button variant="ghost">All screens</Button></Link>
+          <Button variant="primary" disabled={requested} onClick={() => setRequested(true)}>{requested ? 'Request sent to your property admin' : 'Request access'}</Button>
+          <Link to="/screens"><Button variant="secondary">All screens</Button></Link>
         </div>
-        <p className="mt-4 text-xs text-sage-300/70">Demo: change "Demo access tier" in the sidebar to preview this screen.</p>
+        <p className="mt-4 text-xs text-muted">Demo: open “Demo controls” at the bottom of the sidebar and pick a higher access tier.</p>
       </div>
     </div>
   )

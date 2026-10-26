@@ -16,6 +16,11 @@ interface Session {
   demoTier: Tier | null
   /** Demo-only: which staff member the Employee portal shows, so any role's work can be tried. */
   demoEmployeeId: string | null
+  /** Notification ids this browser has already seen. */
+  seenNotifications: string[]
+  markNotificationsSeen: (ids: string[]) => void
+  commandOpen: boolean
+  setCommandOpen: (v: boolean) => void
   demoPaused: boolean
   switching: string | null
   signIn: (passphrase: string) => Portal | null
@@ -30,7 +35,7 @@ interface Session {
 export const useSession = create<Session>()(
   persist(
     (set) => ({
-      accountId: null, portal: null, propertyId: null, demoTier: null, demoEmployeeId: null, demoPaused: false, switching: null,
+      accountId: null, portal: null, propertyId: null, demoTier: null, demoEmployeeId: null, seenNotifications: [], commandOpen: false, demoPaused: false, switching: null,
       signIn: (pass) => {
         // Demo: one shared passphrase. Production swaps this for Firebase Auth + custom claims.
         if (pass.trim().toLowerCase() !== PASSPHRASE.toLowerCase()) return null
@@ -43,9 +48,11 @@ export const useSession = create<Session>()(
       setSwitching: (switching) => set({ switching }),
       setDemoTier: (demoTier) => set({ demoTier }),
       setDemoEmployee: (demoEmployeeId) => set({ demoEmployeeId }),
+      markNotificationsSeen: (ids) => set((s) => ({ seenNotifications: [...new Set([...s.seenNotifications, ...ids])].slice(-400) })),
+      setCommandOpen: (commandOpen) => set({ commandOpen }),
       toggleDemoPaused: () => set((s) => ({ demoPaused: !s.demoPaused })),
     }),
-    { name: 'mise-session-v1', partialize: ({ switching: _s, ...rest }) => rest },
+    { name: 'mise-session-v1', partialize: ({ switching: _s, commandOpen: _c, ...rest }) => rest },
   ),
 )
 

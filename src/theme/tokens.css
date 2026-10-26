@@ -1,34 +1,53 @@
-/* Mise design tokens. Channels are space-separated RGB so Tailwind can apply alpha. */
+/* Mise design tokens. Channels are space-separated RGB so Tailwind can apply alpha.
+   Layout: a deep-forest sidebar beside a light, calm working canvas. Status colours are tuned for AA on white. */
 :root {
-  --forest-950: 7 31 22;      /* #071F16 edge */
-  --forest-900: 11 42 30;     /* #0B2A1E */
+  /* Brand */
+  --forest-950: 7 31 22;      /* #071F16 sidebar edge */
+  --forest-900: 11 42 30;     /* #0B2A1E sidebar / primary action */
   --forest-800: 20 58 40;     /* #143A28 */
   --forest-700: 30 76 54;
   --forest-600: 44 98 71;
+  --forest-100: 223 236 227;  /* tint for selected rows, info chips */
+  --forest-50: 238 245 240;
+  --gold-300: 236 214 160;
   --gold-400: 220 188 112;
-  --gold-500: 201 162 75;     /* #C9A24B */
+  --gold-500: 201 162 75;     /* #C9A24B accent */
   --gold-600: 172 136 56;
-  --sage-50: 242 245 239;     /* #F2F5EF */
-  --sage-100: 234 240 234;    /* #EAF0EA */
+  --gold-700: 128 98 32;      /* gold for text on light surfaces (AA) */
+  --gold-50: 251 246 232;
+
+  /* Working canvas (content pane) */
+  --canvas: 243 245 240;      /* #F3F5F0 */
+  --surface: 255 255 255;
+  --surface-2: 248 250 246;   /* zebra rows, table headers, inset wells */
+  --line: 226 232 224;        /* hairlines */
+  --line-strong: 203 213 202; /* inputs, dividers that must read */
+
+  /* Legacy sage scale (sidebar text, light chips) */
+  --sage-50: 242 245 239;
+  --sage-100: 234 240 234;
   --sage-200: 214 225 214;
   --sage-300: 184 201 186;
   --cream: 250 243 226;
-  --ink: 16 32 24;
-  --muted: 92 112 100;
-  --danger: 214 92 76;
-  --amber: 222 160 60;
-  --ok: 92 178 120;
 
-  --radius-card: 18px;
-  --radius-cell: 10px;
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 10px 30px -12px rgb(0 0 0 / 0.55);
-  --shadow-lift: 0 20px 50px -18px rgb(0 0 0 / 0.7);
+  /* Text */
+  --ink: 16 32 24;            /* primary text  #102018 */
+  --ink-2: 52 70 60;          /* secondary text #34463C */
+  --muted: 96 112 102;        /* tertiary text #607066 (4.9:1 on white) */
 
-  /* Portal density: employee is roomy, manager/author are dense. */
-  --density: 1;
-  color-scheme: dark;
+  /* Status (AA on white as text; use /10–/15 alpha for fills) */
+  --ok: 22 122 72;            /* #167A48 */
+  --amber: 168 98 8;          /* #A86208 */
+  --danger: 190 48 38;        /* #BE3026 */
+  --info: 36 94 160;          /* #245EA0 */
+
+  --radius-card: 12px;
+  --radius-cell: 8px;
+  --shadow-card: 0 1px 2px rgb(16 32 24 / 0.05), 0 1px 3px rgb(16 32 24 / 0.04);
+  --shadow-pop: 0 12px 32px -8px rgb(16 32 24 / 0.18), 0 2px 6px rgb(16 32 24 / 0.06);
+  --shadow-lift: 0 24px 60px -16px rgb(7 31 22 / 0.35);
+  color-scheme: light;
 }
-[data-portal='manager'], [data-portal='author'] { --density: 0.85; }
 
 .brand-sheen {
   background-color: rgb(var(--forest-900));
@@ -37,7 +56,7 @@
     linear-gradient(135deg, transparent 35%, rgb(255 255 255 / 0.035) 50%, transparent 65%),
     radial-gradient(140% 120% at 100% 100%, rgb(var(--forest-950)), transparent 70%);
 }
-.noise::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.06; mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+.sidebar-surface {
+  background-color: rgb(var(--forest-950));
+  background-image: radial-gradient(140% 60% at 0% 0%, rgb(var(--forest-800) / 0.7), transparent 60%);
 }

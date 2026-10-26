@@ -5,14 +5,40 @@
 
 @layer base {
   html, body, #root { height: 100%; }
-  body { @apply bg-forest-900 text-sage-50 font-sans antialiased; }
-  :focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(var(--gold-500) / 0.55); border-radius: 8px; }
-  h1, h2, h3 { @apply font-display tracking-tight; }
+  body { @apply bg-canvas text-ink font-sans antialiased; font-feature-settings: 'cv11', 'ss01'; }
+  :focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(var(--forest-600) / 0.35); border-radius: 6px; }
+  h1, h2, h3, h4 { @apply font-sans tracking-tight text-ink; }
+  ::selection { background: rgb(var(--gold-300)); color: rgb(var(--ink)); }
+  * { scrollbar-width: thin; scrollbar-color: rgb(var(--line-strong)) transparent; }
 }
 @layer components {
-  .card { @apply rounded-card bg-forest-800/70 border border-white/5 shadow-card; }
-  .card-light { @apply rounded-card bg-sage-50 text-ink shadow-card; }
-  .input { @apply w-full rounded-xl bg-sage-100 text-ink placeholder:text-muted px-3 py-2.5 text-sm border border-transparent focus:border-gold-500 focus:shadow-ring outline-none transition; }
-  .label { @apply block text-xs font-semibold uppercase tracking-wider text-sage-300 mb-1.5; }
-  .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-400; }
+  /* Surfaces */
+  .card { @apply rounded-card border border-line bg-surface shadow-card; }
+  .card-inset { @apply rounded-cell border border-line bg-surface-2; }
+  .card-dark { @apply rounded-card bg-forest-900 text-sage-50 shadow-card; }
+  /* Kept for older screens: now a light card on the canvas. */
+  .card-light { @apply rounded-card border border-line bg-surface text-ink shadow-card; }
+
+  /* Forms */
+  .input {
+    @apply w-full rounded-cell border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted/80
+      shadow-[inset_0_1px_1px_rgb(16_32_24/0.03)] outline-none transition
+      hover:border-ink-2/40 focus:border-forest-600 focus:shadow-ring disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-muted;
+  }
+  select.input { @apply pr-8; }
+  .label { @apply mb-1.5 block text-xs font-medium text-ink-2; }
+  .hint { @apply mt-1 block text-xs text-muted; }
+  .eyebrow { @apply text-2xs font-semibold uppercase tracking-[0.14em] text-gold-700; }
+
+  /* Tables */
+  .th { @apply whitespace-nowrap px-4 py-2.5 text-left text-2xs font-semibold uppercase tracking-wider text-muted; }
+  .td { @apply px-4 py-3 align-middle text-sm text-ink; }
+
+  .link { @apply font-medium text-forest-700 underline-offset-2 hover:underline; }
+  .kbd { @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-line-strong bg-surface px-1 font-sans text-[10px] font-semibold text-muted; }
+}
+@layer utilities {
+  .tabular { font-variant-numeric: tabular-nums; }
+  .scrollbar-none { scrollbar-width: none; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
 }
