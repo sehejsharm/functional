@@ -306,7 +306,7 @@ export function JoinRequests() {
     { key: 'role', header: 'Role', sort: (j) => role(j)?.name, csv: (j) => role(j)?.name, cell: (j) => <div><div className="text-sm text-ink">{role(j)?.name}</div><div className="text-xs text-muted">{role(j)?.team}</div></div> },
     { key: 'shift', header: 'Shift', hideOnMobile: true, sort: (j) => shift(j)?.name, csv: (j) => shift(j)?.name, cell: (j) => <div className="text-sm text-ink-2">{shift(j)?.name}<span className="text-muted"> · {shift(j) ? `${fTime(shift(j)!.start)} – ${fTime(shift(j)!.end)}` : ''}</span></div> },
     { key: 'at', header: 'Requested', hideOnMobile: true, sort: (j) => j.at, csv: (j) => j.at, cell: (j) => <div className="text-sm text-ink-2">{relTime(j.at)}<div className="text-xs text-muted">{fDateTime(j.at)}</div></div> },
-    { key: 'act', header: tab === 'pending' ? <span className="sr-only">Decision</span> : 'Decision', align: 'right', csv: (j) => j.status, cell: (j) => j.status === 'pending' ? (
+    { key: 'act', header: 'Decision', align: 'right', csv: (j) => j.status, cell: (j) => j.status === 'pending' ? (
       <div className="flex justify-end gap-2"><Button size="xs" variant="ghost" onClick={() => decide(j, 'declined')}>Decline</Button><Button size="xs" variant="primary" icon={UserPlus} onClick={() => decide(j, 'approved')}>Approve</Button></div>
     ) : <Badge tone={j.status === 'approved' ? 'success' : 'neutral'} dot>{j.status === 'approved' ? 'Approved' : 'Declined'}</Badge> },
   ]

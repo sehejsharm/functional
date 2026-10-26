@@ -11,7 +11,7 @@ export const TASK_STATUS: Record<TaskStatus, { label: string; tone: Tone }> = {
   scheduled: { label: 'Scheduled', tone: 'neutral' },
   ready: { label: 'Ready', tone: 'info' },
   in_progress: { label: 'In progress', tone: 'info' },
-  awaiting_verification: { label: 'Awaiting verification', tone: 'warning' },
+  awaiting_verification: { label: 'Awaiting check', tone: 'warning' },
   done: { label: 'Done', tone: 'success' },
   cancelled: { label: 'Cancelled', tone: 'neutral' },
 }
@@ -63,7 +63,7 @@ export const isOverdue = (t: Task, now = Date.now()) => (t.status === 'scheduled
 export type TaskStateKey = TaskStatus | 'overdue' | 'returned'
 export function taskState(t: Task, now = Date.now()): { key: TaskStateKey; label: string; tone: Tone } {
   if (t.status === 'in_progress' && t.returned) return { key: 'returned', label: 'Sent back', tone: 'danger' }
-  if (isOverdue(t, now)) return { key: 'overdue', label: t.status === 'scheduled' ? 'Overdue · not started' : 'Overdue', tone: 'danger' }
+  if (isOverdue(t, now)) return { key: 'overdue', label: t.status === 'scheduled' ? 'Late start' : 'Overdue', tone: 'danger' }
   return { key: t.status, ...TASK_STATUS[t.status] }
 }
 

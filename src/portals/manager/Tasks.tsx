@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { ArrowRightLeft, ChevronRight, ClipboardList, Crown, ShieldCheck, XCircle } from 'lucide-react'
+import { ArrowRightLeft, ClipboardList, Crown, ShieldCheck, XCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, DataTable, EmptyState, PageHeader, Segmented, Tabs, type Column } from '@/components/ui'
@@ -62,20 +62,20 @@ export function ManagerTasks() {
         <div className="truncate text-xs text-muted">{r?.type}</div>
       </div>) } },
     { key: 'guest', header: 'Guest', hideOnMobile: true, sort: (t) => L.room(t.roomId)?.guestName ?? '', csv: (t) => L.room(t.roomId)?.guestName ?? L.room(t.roomId)?.occupancy, cell: (t) => { const r = L.room(t.roomId); return (
-      <div className="min-w-0 max-w-[180px]"><div className="truncate text-sm text-ink">{r?.guestName ?? <span className="text-muted">No guest</span>}</div><OccupancyChip occ={r?.occupancy} /></div>) } },
-    { key: 'staff', header: 'Staff', sort: (t) => L.name(t.personId), csv: (t) => L.name(t.personId), cell: (t) => <PersonCell person={L.person(t.personId)} size={26} /> },
+      <div className="min-w-0 max-w-[150px]"><div className="truncate text-sm text-ink">{r?.guestName ?? <span className="text-muted">No guest</span>}</div><OccupancyChip occ={r?.occupancy} /></div>) } },
+    { key: 'staff', header: 'Staff', sort: (t) => L.name(t.personId), csv: (t) => L.name(t.personId), cell: (t) => <div className="max-w-[150px]"><PersonCell person={L.person(t.personId)} size={22} /></div> },
     { key: 'sop', header: 'SOP', hideOnMobile: true, sort: (t) => L.version(t.sopVersionId)?.code, csv: (t) => { const v = L.version(t.sopVersionId); return `${v?.code} v${v?.version}` }, cell: (t) => { const v = L.version(t.sopVersionId); return (
-      <div className="min-w-0 whitespace-nowrap"><div className="text-sm font-medium text-ink">{v?.code}</div><div className="text-xs text-muted">v{v?.version}</div></div>) } },
+      <div className="min-w-0 whitespace-nowrap"><div className="text-xs font-semibold text-ink">{v?.code}</div><div className="text-xs text-muted">v{v?.version}</div></div>) } },
     { key: 'window', header: 'Window', hideOnMobile: true, sort: (t) => t.start, csv: (t) => fWindow(t), cell: (t) => <span className="whitespace-nowrap text-sm tabular text-ink-2">{days > 1 && <span className="text-muted">{hotelDateKey(t.start).slice(5)} · </span>}{fWindow(t)}</span> },
     { key: 'status', header: 'Status', sort: (t) => ATTENTION[taskState(t, now).key], csv: (t) => taskState(t, now).label, cell: (t) => <TaskStatusBadge task={t} now={now} /> },
     { key: 'priority', header: 'Priority', hideOnMobile: true, sort: (t) => PRIORITY[t.priority].rank, csv: (t) => PRIORITY[t.priority].label, cell: (t) => <PriorityBadge priority={t.priority} hideStandard /> },
-    { key: 'elapsed', header: 'Elapsed', align: 'right', hideOnMobile: true, sort: (t) => taskTiming(t, L.version(t.sopVersionId), now).elapsed ?? -1,
+    { key: 'elapsed', header: 'Time', align: 'right', hideOnMobile: true, sort: (t) => taskTiming(t, L.version(t.sopVersionId), now).elapsed ?? -1,
       csv: (t) => { const x = taskTiming(t, L.version(t.sopVersionId), now); return x.elapsed == null ? '' : `${x.elapsed}/${x.target}` },
-      cell: (t) => { const x = taskTiming(t, L.version(t.sopVersionId), now); return x.elapsed == null ? <span className="text-xs text-muted">{x.target} min target</span> : (
-        <span className="whitespace-nowrap text-sm"><b className={clsx('tabular', x.over ? 'text-danger' : 'text-ink')}>{x.elapsed}</b><span className="text-muted"> / {x.target} min</span></span>) } },
-    { key: 'go', header: <span className="sr-only">Actions</span>, align: 'right', cell: (t) => A.canVerify(t) ? (
-      <Button size="xs" variant="primary" icon={ShieldCheck} onClick={(e) => { e.stopPropagation(); A.verify(t) }}>Verify</Button>
-    ) : <ChevronRight size={16} className="ml-auto text-muted" aria-hidden /> },
+      cell: (t) => { const x = taskTiming(t, L.version(t.sopVersionId), now); return x.elapsed == null ? <span className="whitespace-nowrap text-xs text-muted">—/{x.target}m</span> : (
+        <span className="whitespace-nowrap text-sm" aria-label={`${x.elapsed} of ${x.target} minutes`}><b className={clsx('tabular', x.over ? 'text-danger' : 'text-ink')}>{x.elapsed}</b><span className="text-muted">/{x.target}m</span></span>) } },
+    { key: 'go', header: '', align: 'right', cell: (t) => A.canVerify(t) ? (
+      <Button size="xs" variant="primary" onClick={(e) => { e.stopPropagation(); A.verify(t) }} aria-label={`Verify room ${L.room(t.roomId)?.number}`}>Verify</Button>
+    ) : null },
   ]
 
   const bulkVerify = (sel: Task[], clear: () => void) => {

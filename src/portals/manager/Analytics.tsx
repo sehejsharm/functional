@@ -15,7 +15,7 @@ import type { Person, Task } from '@/lib/types'
 import { usePersona } from '@/shell/PortalShell'
 import { sendAckReminder } from './actions'
 import { Callout, IssueStatusBadge, SeverityBadge, TaskStatusBadge, useLookups } from './components'
-import { DAY, ackCompliance, dayLabel, fWindow, offOn, pct, shiftOf, taskTiming, verifyPass, versionsForRole } from './model'
+import { DAY, ackCompliance, dayLabel, fWindow, offOn, taskTiming, verifyPass, versionsForRole } from './model'
 import { STAFF_STATUS, type StaffStatus } from './Staff'
 
 type Period = '7' | '14'
@@ -25,11 +25,15 @@ function usePeriod(p: Period) {
   const { tasks, sopVersions, audit } = useDB()
   return useMemo(() => {
     const n = Number(p)
-    const cur = tasks.filter((t) => Date.parse(t.start) > now - n * DAY && Date.parse(t.start) <= now)
-    const prev = tasks.filter((t) => Date.parse(t.start) > now - 2 * n * DAY && Date.parse(t.start) <= now - n * DAY)
-    // Completed days only — today is still running.
+    // Whole hotel days: the period is today and the n-1 days before it; the comparison is the n days before that.
+    const from = hotelDateKey(now - (n - 1) * DAY), prevFrom = hotelDateKey(now - (2 * n - 1) * DAY), today = hotelDateKey(now)
+    const cur = tasks.filter((t) => { const k = hotelDateKey(t.start); return k >= from && k <= today })
+    const prev = tasks.filter((t) => { const k = hotelDateKey(t.start); return k >= prevFrom && k < from })
+    // Charts plot completed days only — today is still running.
     const keys = Array.from({ length: n }, (_, i) => hotelDateKey(now - (n - i) * DAY))
-    return { n, now, cur, prev, keys, versions: sopVersions, audit }
+    const day = (k: string) => tasks.filter((t) => hotelDateKey(t.start) === k)
+    const window3 = (k: string) => { const i = Date.parse(`${k}T12:00:00Z`); const ks = [0, 1, 2].map((d) => new Date(i - d * DAY).toISOString().slice(0, 10)); return tasks.filter((t) => ks.includes(hotelDateKey(t.start))) }
+    return { n, now, cur, prev, keys, day, window3, versions: sopVersions, audit }
   }, [p, tasks, sopVersions, audit, now])
 }
 
@@ -64,20 +68,20 @@ export function TeamProgress() {
   const hasPrev = sp.completed > 0
   const target = (t: Task) => byId(P.versions, t.sopVersionId)?.timeTargetMin ?? 27
   const series = [
-    { name: 'On-time %', points: P.keys.map((k) => ({ x: dayLabel(k), y: stats(P.cur.filter((t) => hotelDateKey(t.start) === k), P.versions, P.now).onTimePct })) },
-    { name: 'Verification pass %', points: P.keys.map((k) => ({ x: dayLabel(k), y: verifyPass(P.cur.filter((t) => hotelDateKey(t.start) === k), P.audit).pct ?? 0 })) },
+    { name: 'On-time %', points: P.keys.map((k) => ({ x: dayLabel(k), y: stats(P.day(k), P.versions, P.now).onTimePct })) },
+    { name: 'Verification pass %', points: P.keys.map((k) => ({ x: dayLabel(k), y: verifyPass(P.day(k), P.audit).pct ?? 0 })) },
   ]
   const rows: PersonRow[] = people.filter((p) => P.cur.some((t) => t.personId === p.id)).map((p) => {
     const mine = P.cur.filter((t) => t.personId === p.id)
     return { p, s: stats(mine, P.versions, P.now), vp: verifyPass(mine, P.audit).pct, incidents: issues.filter((i) => i.reportedById === p.id && Date.parse(i.at) > P.now - P.n * DAY).length }
   })
   const columns: Column<PersonRow>[] = [
-    { key: 'name', header: 'Staff member', sort: (r) => r.p.name, csv: (r) => r.p.name, cell: (r) => <span className="flex items-center gap-2.5"><Avatar name={r.p.name} size={28} /><span><span className="block text-sm font-medium text-ink">{r.p.name}</span><span className="block text-xs text-muted">{r.p.title}</span></span></span> },
+    { key: 'name', header: 'Staff member', sort: (r) => r.p.name, csv: (r) => r.p.name, cell: (r) => <span className="flex items-center gap-2.5 whitespace-nowrap"><Avatar name={r.p.name} size={26} /><span className="text-sm font-medium text-ink">{r.p.name}</span></span> },
     { key: 'done', header: 'Completed', align: 'right', sort: (r) => r.s.completed, csv: (r) => r.s.completed, cell: (r) => r.s.completed },
     { key: 'ontime', header: 'On-time', align: 'right', sort: (r) => r.s.onTimePct, csv: (r) => r.s.onTimePct, cell: (r) => <Badge tone={r.s.onTimePct >= 70 ? 'success' : r.s.onTimePct >= 45 ? 'warning' : 'danger'}>{r.s.onTimePct}%</Badge> },
     { key: 'avg', header: 'Avg vs target', align: 'right', hideOnMobile: true, sort: (r) => r.s.avgDelta, csv: (r) => r.s.avgDelta, cell: (r) => <span className={r.s.avgDelta > 0 ? 'text-danger' : 'text-ok'}>{signed(r.s.avgDelta)} min</span> },
-    { key: 'vp', header: 'Verification pass', align: 'right', hideOnMobile: true, sort: (r) => r.vp ?? -1, csv: (r) => r.vp ?? '', cell: (r) => (r.vp == null ? <span className="text-muted">—</span> : `${r.vp}%`) },
-    { key: 'inc', header: 'Incidents raised', align: 'right', hideOnMobile: true, sort: (r) => r.incidents, csv: (r) => r.incidents, cell: (r) => r.incidents },
+    { key: 'vp', header: 'Verified first time', align: 'right', hideOnMobile: true, sort: (r) => r.vp ?? -1, csv: (r) => r.vp ?? '', cell: (r) => (r.vp == null ? <span className="text-muted">—</span> : `${r.vp}%`) },
+    { key: 'inc', header: 'Incidents', align: 'right', hideOnMobile: true, sort: (r) => r.incidents, csv: (r) => r.incidents, cell: (r) => r.incidents },
   ]
   return (
     <div className="space-y-6">
@@ -98,7 +102,7 @@ export function TeamProgress() {
           <p className="mt-3 flex items-center gap-4 text-xs text-muted"><span className="flex items-center gap-1.5"><span className="h-2 w-3 rounded-sm bg-forest-700/80" />Within target</span><span className="flex items-center gap-1.5"><span className="h-2 w-3 rounded-sm bg-amber/80" />Over target</span></p>
         </Section>
       </div>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
+      <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
         <Section title="On-time by person" icon={Gauge}>
           {rows.length ? <HBars data={[...rows].sort((a, b) => b.s.onTimePct - a.s.onTimePct).map((r) => ({ label: r.p.name, value: r.s.onTimePct, hint: `${r.s.completed} rooms` }))} suffix="%" max={100} /> : <EmptyState compact title="No work in this period" />}
         </Section>
@@ -136,7 +140,7 @@ export function SopResults() {
   const top = [...rows].sort((a, b) => b.runs - a.runs).slice(0, 4)
   const series = top.map((r) => {
     const vIds = sopVersions.filter((v) => v.sopId === r.sopId).map((v) => v.id)
-    return { name: r.code, points: P.keys.map((k) => ({ x: dayLabel(k), y: stats(P.cur.filter((t) => vIds.includes(t.sopVersionId) && hotelDateKey(t.start) === k), P.versions, P.now).onTimePct })) }
+    return { name: r.code, points: P.keys.map((k) => ({ x: dayLabel(k), y: stats(P.window3(k).filter((t) => vIds.includes(t.sopVersionId)), P.versions, P.now).onTimePct })) }
   })
   const selTasks = sel ? P.cur.filter((t) => byId(sopVersions, t.sopVersionId)?.sopId === sel.sopId) : []
   const byVersion = sel ? [...new Set(selTasks.map((t) => t.sopVersionId))].map((vid) => { const v = byId(sopVersions, vid)!; const ts = selTasks.filter((t) => t.sopVersionId === vid); return { v, s: stats(ts, sopVersions, P.now), runs: ts.length } }) : []
@@ -160,7 +164,7 @@ export function SopResults() {
         <StatCard label="Verification pass" value={vpAll.pct ?? '—'} unit={vpAll.pct == null ? undefined : '%'} icon={ShieldCheck} hint={`${vpAll.checked} rooms checked`} />
       </div>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <Section title="On-time by SOP, per day" description="The four most-run SOPs · completed days" icon={BarChart3}>
+        <Section title="On-time by SOP" description="The four most-run SOPs · 3-day rolling average, completed days" icon={BarChart3}>
           <LineChart series={series} label="On-time rate by SOP" max={100} area={false} />
         </Section>
         <Section title="Runs by SOP" icon={Gauge}>
@@ -211,7 +215,7 @@ export function StaffDetail() {
   useBreadcrumb(p?.name)
   if (!p) return <div><PageHeader title="Person not found" back={{ to: '/manager/staff', label: 'Staff directory' }} /><EmptyState icon={UserX} title="No one with that ID" description="They may have left the property or the link is wrong." action={<Link to="/manager/staff"><Button variant="secondary">Back to the directory</Button></Link>} /></div>
   const role = byId(jobRoles, p.jobRoleId)
-  const shift = shiftOf(p.id, shifts)
+  const myShifts = shifts.filter((x) => x.memberIds.includes(p.id))
   const today = hotelDateKey(now)
   const status: StaffStatus = p.status === 'on_leave' ? 'on_leave' : p.status === 'inactive' ? 'inactive' : offOn(db, p.id, today) ? 'time_off' : 'active'
   const mine = tasks.filter((t) => t.personId === p.id)
@@ -237,14 +241,14 @@ export function StaffDetail() {
     { key: 'room', header: 'Room', sort: (t) => L.room(t.roomId)?.number, csv: (t) => L.room(t.roomId)?.number, cell: (t) => <span className="font-medium tabular">{L.room(t.roomId)?.number}</span> },
     { key: 'sop', header: 'SOP', hideOnMobile: true, sort: (t) => L.version(t.sopVersionId)?.code, csv: (t) => L.version(t.sopVersionId)?.code, cell: (t) => <span className="whitespace-nowrap text-sm">{L.version(t.sopVersionId)?.code} <span className="text-xs text-muted">v{L.version(t.sopVersionId)?.version}</span></span> },
     { key: 'status', header: 'Status', sort: (t) => t.status, csv: (t) => t.status, cell: (t) => <TaskStatusBadge task={t} now={now} /> },
-    { key: 'time', header: 'Time vs target', align: 'right', hideOnMobile: true, sort: (t) => taskTiming(t, L.version(t.sopVersionId), now).elapsed ?? -1, csv: (t) => taskTiming(t, L.version(t.sopVersionId), now).elapsed ?? '', cell: (t) => { const x = taskTiming(t, L.version(t.sopVersionId), now); return x.elapsed == null ? <span className="text-muted">—</span> : <span><b className={x.over ? 'text-danger' : 'text-ink'}>{x.elapsed}</b><span className="text-muted"> / {x.target} min</span></span> } },
+    { key: 'time', header: 'Time', align: 'right', hideOnMobile: true, sort: (t) => taskTiming(t, L.version(t.sopVersionId), now).elapsed ?? -1, csv: (t) => taskTiming(t, L.version(t.sopVersionId), now).elapsed ?? '', cell: (t) => { const x = taskTiming(t, L.version(t.sopVersionId), now); return x.elapsed == null ? <span className="text-muted">—</span> : <span className="whitespace-nowrap"><b className={x.over ? 'text-danger' : 'text-ink'}>{x.elapsed}</b><span className="text-muted">/{x.target}m</span></span> } },
   ]
 
   return (
     <div className="space-y-6">
       <PageHeader back={{ to: '/manager/staff', label: 'Staff directory' }}
         title={<span className="flex flex-wrap items-center gap-3"><Avatar name={p.name} size={48} />{p.name}<Badge tone={STAFF_STATUS[status].tone} dot size="md">{STAFF_STATUS[status].label}</Badge></span>}
-        description={`${p.title} · ${role?.team} · ${shift ? `${shift.name} shift` : 'not rostered today'}`}
+        description={`${p.title} · ${role?.team} · ${myShifts.length ? `${myShifts.map((x) => x.name).join(' & ')} shift` : 'not rostered today'}`}
         meta={<>
           <span className="tabular">{p.employeeNo}</span>
           {p.email && <a href={`mailto:${p.email}`} className="inline-flex items-center gap-1 hover:text-ink"><Mail size={12} />{p.email}</a>}
@@ -321,7 +325,6 @@ export function StaffDetail() {
           {status !== 'active' && <Callout tone="warning" title={STAFF_STATUS[status].label}>Don’t assign rooms to {p.name.split(' ')[0]} until they’re back. Their open rooms can be moved from Live tasks.</Callout>}
         </div>
       </div>
-      <p className="text-xs text-muted">{pct(s.completed, Math.max(1, recent.length))}% of assigned rooms in the last 14 days were completed.</p>
     </div>
   )
 }

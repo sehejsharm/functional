@@ -17,7 +17,7 @@ export const STAFF_STATUS: Record<StaffStatus, { label: string; tone: Tone }> = 
   active: { label: 'Active', tone: 'success' }, time_off: { label: 'Time off today', tone: 'warning' }, on_leave: { label: 'On leave', tone: 'warning' }, inactive: { label: 'Inactive', tone: 'neutral' },
 }
 
-interface Row { p: Person; role?: JobRole; shift?: Shift; status: StaffStatus; today: number; doneToday: number; onTime: number | null; completed: number; ack: { pct: number | null; acked: number; total: number } }
+interface Row { p: Person; role?: JobRole; shift?: Shift; shiftLabel: string; status: StaffStatus; today: number; doneToday: number; onTime: number | null; completed: number; ack: { pct: number | null; acked: number; total: number } }
 
 export function useStaffRows(): Row[] {
   const now = useNow(60_000)
@@ -30,7 +30,7 @@ export function useStaffRows(): Row[] {
       const td = mine.filter((t) => hotelDateKey(t.start) === today && t.status !== 'cancelled')
       const st = stats(mine.filter((t) => Date.parse(t.start) > now - 14 * DAY), sopVersions, now)
       const status: StaffStatus = p.status === 'on_leave' ? 'on_leave' : p.status === 'inactive' ? 'inactive' : offOn(db, p.id, today) ? 'time_off' : 'active'
-      return { p, role: byId(jobRoles, p.jobRoleId), shift: shifts.find((s) => s.memberIds.includes(p.id)), status, today: td.length, doneToday: td.filter((t) => t.status === 'done').length, onTime: st.completed ? st.onTimePct : null, completed: st.completed, ack: ackCompliance(db, p) }
+      return { p, role: byId(jobRoles, p.jobRoleId), shift: shifts.find((s) => s.memberIds.includes(p.id)), shiftLabel: shifts.filter((s) => s.memberIds.includes(p.id)).map((s) => s.name).join(' & '), status, today: td.length, doneToday: td.filter((t) => t.status === 'done').length, onTime: st.completed ? st.onTimePct : null, completed: st.completed, ack: ackCompliance(db, p) }
     })
   }, [db, people, jobRoles, shifts, tasks, sopVersions, now])
 }
@@ -46,7 +46,7 @@ export function StaffDirectory() {
   const [status, setStatus] = useState('')
   const senior = canAccess(grant?.tier, 'senior')
   const teams = [...new Set(jobRoles.map((r) => r.team))]
-  const shown = rows.filter((r) => (!team || r.role?.team === team) && (!role || r.p.jobRoleId === role) && (!shift || (shift === 'none' ? !r.shift : r.shift?.id === shift)) && (!status || r.status === status))
+  const shown = rows.filter((r) => (!team || r.role?.team === team) && (!role || r.p.jobRoleId === role) && (!shift || (shift === 'none' ? !r.shift : byId(shifts, shift)?.memberIds.includes(r.p.id))) && (!status || r.status === status))
   const acks = rows.filter((r) => r.ack.pct != null)
   const ackAvg = acks.length ? Math.round(acks.reduce((a, r) => a + (r.ack.pct ?? 0), 0) / acks.length) : 0
 
@@ -55,7 +55,7 @@ export function StaffDirectory() {
       <span className="flex min-w-0 items-center gap-2.5"><Avatar name={r.p.name} size={30} /><span className="min-w-0"><span className="block truncate text-sm font-medium text-ink">{r.p.name}</span><span className="block truncate text-xs text-muted">{r.p.email}</span></span></span>) },
     { key: 'emp', header: 'Employee no', hideOnMobile: true, sort: (r) => r.p.employeeNo, csv: (r) => r.p.employeeNo, cell: (r) => <span className="text-sm tabular text-ink-2">{r.p.employeeNo}</span> },
     { key: 'role', header: 'Role', sort: (r) => r.role?.name, csv: (r) => r.role?.name, cell: (r) => <div className="min-w-0"><div className="truncate text-sm text-ink">{r.role?.name}</div><div className="text-xs text-muted">{r.role?.team}</div></div> },
-    { key: 'shift', header: 'Shift today', hideOnMobile: true, sort: (r) => r.shift?.name ?? 'zz', csv: (r) => r.shift?.name ?? '', cell: (r) => r.shift ? <span className="text-sm text-ink-2">{r.shift.name}</span> : <span className="text-xs text-muted">Not rostered</span> },
+    { key: 'shift', header: 'Shift today', hideOnMobile: true, sort: (r) => r.shiftLabel || 'zz', csv: (r) => r.shiftLabel, cell: (r) => r.shift ? <span className="text-sm text-ink-2">{r.shiftLabel}</span> : <span className="text-xs text-muted">Not rostered</span> },
     { key: 'status', header: 'Status', sort: (r) => r.status, csv: (r) => STAFF_STATUS[r.status].label, cell: (r) => <Badge tone={STAFF_STATUS[r.status].tone} dot>{STAFF_STATUS[r.status].label}</Badge> },
     { key: 'today', header: 'Rooms today', align: 'right', hideOnMobile: true, sort: (r) => r.today, csv: (r) => `${r.doneToday}/${r.today}`, cell: (r) => r.today ? <span className="tabular"><b>{r.doneToday}</b><span className="text-muted">/{r.today}</span></span> : <span className="text-muted">—</span> },
     { key: 'ontime', header: 'On-time 14d', align: 'right', hideOnMobile: true, sort: (r) => r.onTime ?? -1, csv: (r) => r.onTime ?? '', cell: (r) => r.onTime == null ? <span className="text-xs text-muted">No history</span> : <span className={r.onTime < 50 ? 'font-semibold text-danger' : 'text-ink'}>{r.onTime}%</span> },

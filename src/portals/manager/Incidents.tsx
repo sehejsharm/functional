@@ -48,10 +48,10 @@ export function Incidents() {
 
   const columns: Column<Issue>[] = [
     { key: 'title', header: 'Incident', sort: (i) => i.title, csv: (i) => i.title, cell: (i) => (
-      <div className="min-w-0 max-w-[320px]"><div className="truncate font-medium text-ink">{i.title}</div><div className="truncate text-xs text-muted">{i.text}</div></div>) },
+      <div className="min-w-0 max-w-[240px]"><div className="truncate font-medium text-ink">{i.title}</div><div className="truncate text-xs text-muted">{i.text}</div></div>) },
     { key: 'category', header: 'Category', hideOnMobile: true, sort: (i) => CATEGORY[i.category], csv: (i) => CATEGORY[i.category], cell: (i) => <span className="whitespace-nowrap text-sm text-ink-2">{CATEGORY[i.category]}</span> },
     { key: 'severity', header: 'Severity', sort: (i) => SEVERITY[i.severity].rank, csv: (i) => SEVERITY[i.severity].label, cell: (i) => <SeverityBadge severity={i.severity} /> },
-    { key: 'room', header: 'Room', hideOnMobile: true, sort: (i) => L.room(i.roomId)?.number ?? '', csv: (i) => L.room(i.roomId)?.number ?? '', cell: (i) => i.roomId ? <span className="font-medium tabular">{L.room(i.roomId)?.number}</span> : <span className="text-xs text-muted">Public area</span> },
+    { key: 'room', header: 'Room', hideOnMobile: true, sort: (i) => L.room(i.roomId)?.number ?? '', csv: (i) => L.room(i.roomId)?.number ?? '', cell: (i) => i.roomId ? <span className="font-medium tabular">{L.room(i.roomId)?.number}</span> : <span className="whitespace-nowrap text-xs text-muted">No room</span> },
     { key: 'reporter', header: 'Reported by', hideOnMobile: true, sort: (i) => L.name(i.reportedById), csv: (i) => L.name(i.reportedById), cell: (i) => <PersonCell person={L.person(i.reportedById)} size={24} /> },
     { key: 'assignee', header: 'Assignee', hideOnMobile: true, sort: (i) => L.name(i.assignedToId), csv: (i) => (i.assignedToId ? L.name(i.assignedToId) : ''), cell: (i) => i.assignedToId ? <PersonCell person={L.person(i.assignedToId)} size={24} /> : <span className="text-xs font-medium text-amber">Unassigned</span> },
     { key: 'status', header: 'Status', sort: (i) => i.status, csv: (i) => ISSUE_STATUS[i.status].label, cell: (i) => <IssueStatusBadge status={i.status} /> },
