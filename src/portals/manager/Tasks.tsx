@@ -83,7 +83,7 @@ export function ManagerTasks() {
     ready.forEach((t) => { const r = verifyAs(t.id, me?.id ?? 'elena'); if (r.ok) ok++; else refused.push(L.room(t.roomId)?.number ?? '') })
     const skipped = sel.length - ok
     if (ok) toast.success(`${ok} room${ok === 1 ? '' : 's'} verified`, { description: skipped ? `${skipped} skipped — not waiting for verification${refused.length ? ` or your own (${refused.join(', ')})` : ''}.` : undefined })
-    else toast.error('Nothing to verify', { description: 'None of the selected rooms are waiting for verification.' })
+    else toast.error('Nothing verified', { description: refused.length ? `You can’t verify a room you worked yourself (${refused.join(', ')}). Ask another manager.` : 'None of the selected rooms are waiting for verification.' })
     clear()
   }
   const bulkCancel = async (sel: Task[], clear: () => void) => {

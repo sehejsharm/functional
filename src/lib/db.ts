@@ -7,6 +7,9 @@ import { buildSeed, type Seed } from './seed'
 import type { AttendanceMark, CoverItem, FeedbackLane, Issue, IssueCategory, IssueSeverity, IssueStatus, Notice, Priority, ReviewDecision, SopStep, SopVersion, Task } from './types'
 import { hotelDateKey, iso } from './time'
 
+/** Boot with the device's real network state (the app can open offline from the service-worker cache). */
+const initialConnection = (): Connection => ({ hotel: typeof navigator !== 'undefined' && navigator.onLine === false ? 'offline' : 'online', checkin: 'ok' })
+
 const uid = (p: string) => `${p}-${Math.random().toString(36).slice(2, 9)}`
 const nowIso = () => iso(Date.now())
 
@@ -86,11 +89,11 @@ export const useDB = create<DB>()(
 
       return {
         ...buildSeed(),
-        connection: { hotel: 'online', checkin: 'ok' },
+        connection: initialConnection(),
         outbox: [],
         seededFor: hotelDateKey(),
 
-        reset: () => set({ ...buildSeed(), connection: { hotel: 'online', checkin: 'ok' }, outbox: [], seededFor: hotelDateKey() }),
+        reset: () => set({ ...buildSeed(), connection: initialConnection(), outbox: [], seededFor: hotelDateKey() }),
         setConnection: (c) => {
           set((s) => ({ connection: { ...s.connection, ...c } }))
           if (c.hotel === 'online') get().flushOutbox()
@@ -396,6 +399,9 @@ export const useDB = create<DB>()(
 
 // The shared demo re-seeds each hotel day so Today always has live work in it.
 if (useDB.getState().seededFor !== hotelDateKey()) useDB.getState().reset()
+
+// Changes queued before a reload sync as soon as the app is back online.
+if (useDB.getState().connection.hotel === 'online' && useDB.getState().outbox.length) useDB.getState().flushOutbox()
 
 // Cross-tab "real-time": another tab's write lands here without a reload.
 if (typeof window !== 'undefined') {

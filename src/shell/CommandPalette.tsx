@@ -29,6 +29,7 @@ export function CommandPalette({ portal }: { portal: Portal }) {
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setOpen(!useSession.getState().commandOpen) }
+      if (e.key === 'Escape' && open) { e.preventDefault(); setOpen(false); return }
       if (e.key === '/' && !open && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement)) { e.preventDefault(); setOpen(true) }
     }
     window.addEventListener('keydown', h)

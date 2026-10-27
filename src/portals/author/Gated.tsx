@@ -127,7 +127,7 @@ function AuditLog() {
   const actors = [...new Set(rows.map((r) => r.actorId))].map((id) => ({ id, name: byId(db.people, id)?.name ?? id })).sort((a, b) => a.name.localeCompare(b.name))
   const visible = rows.filter((r) => (area === 'all' || r.area === area) && (actor === 'all' || r.actorId === actor))
   const columns: Column<Row>[] = [
-    { key: 'at', header: 'Time', sort: (r) => r.at, csv: (r) => fDateTime(r.at), width: '170px', cell: (r) => <div className="whitespace-nowrap"><div className="text-sm text-ink">{fDateTime(r.at)}</div><div className="text-xs text-muted">{relTime(r.at)}</div></div> },
+    { key: 'at', header: 'Time', sort: (r) => r.at, csv: (r) => r.at, width: '170px', cell: (r) => <div className="whitespace-nowrap"><div className="text-sm text-ink">{fDateTime(r.at)}</div><div className="text-xs text-muted">{relTime(r.at)}</div></div> },
     { key: 'actor', header: 'Actor', sort: (r) => r.actor, csv: (r) => r.actor, cell: (r) => <PersonChip id={r.actorId} size={26} sub={byId(db.people, r.actorId)?.title} /> },
     { key: 'action', header: 'Action', sort: (r) => r.what, csv: (r) => r.action,
       cell: (r) => <div><div className="text-sm font-medium text-ink">{r.what}</div><code className="font-mono text-[11px] text-muted">{r.action}</code></div> },

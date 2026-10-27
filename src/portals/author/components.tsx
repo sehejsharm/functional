@@ -313,7 +313,7 @@ export function useSopCommands() {
       const ok = await confirm({ title: `Restore ${sop.code}?`, confirmLabel: 'Restore SOP', body: cur ? `Version ${cur.version} becomes assignable again straight away.` : 'It returns to the library. It has no published version, so it can’t be assigned yet.' })
       if (!ok) return
       s.restoreSop(sopId, me)
-      toast.success(`${sop.code} restored`, { description: cur ? `Managers can assign ${cur.version} again.` : undefined })
+      toast.success(`${sop.code} restored`, { description: cur ? `Managers can assign v${cur.version} again.` : undefined })
     },
     applyFeedback: async (f: Feedback) => {
       const r = startRevisionWithFeedback(f, me)
