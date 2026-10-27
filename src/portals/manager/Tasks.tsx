@@ -56,19 +56,18 @@ export function ManagerTasks() {
   const anyFilter = !!(shift || staff || sop || priority || roomId)
 
   const columns: Column<Task>[] = [
-    { key: 'room', header: 'Room', sort: (t) => L.room(t.roomId)?.number, csv: (t) => L.room(t.roomId)?.number, cell: (t) => { const r = L.room(t.roomId); return (
-      <div className="min-w-0">
-        <div className="flex items-center gap-1 font-semibold tabular text-ink">{r?.number}{r?.vip && <Crown size={12} className="text-gold-700" aria-label="VIP" />}</div>
-        <div className="truncate text-xs text-muted">{r?.type}<span className="md:hidden"> · {L.person(t.personId)?.name.split(' ')[0]}</span></div>
+    // Room, type, guest and occupancy share one cell so the table fits a laptop screen without scrolling.
+    { key: 'room', header: 'Room & guest', sort: (t) => L.room(t.roomId)?.number, csv: (t) => { const r = L.room(t.roomId); return [r?.number, r?.guestName ?? r?.occupancy?.replace('_', ' ')].filter(Boolean).join(' — ') }, cell: (t) => { const r = L.room(t.roomId); return (
+      <div className="min-w-0 max-w-[220px]">
+        <div className="flex items-center gap-1.5 font-semibold tabular text-ink">{r?.number}{r?.vip && <Crown size={12} className="text-gold-700" aria-label="VIP" />}<span className="truncate text-xs font-normal text-muted">{r?.type}</span></div>
+        <div className="mt-0.5 flex min-w-0 items-center gap-1.5"><span className="truncate text-xs text-ink-2">{r?.guestName ?? 'No guest'}</span><span className="max-md:hidden"><OccupancyChip occ={r?.occupancy} /></span><span className="text-xs text-muted md:hidden">· {L.person(t.personId)?.name.split(' ')[0]}</span></div>
       </div>) } },
-    { key: 'guest', header: 'Guest', hideOnMobile: true, sort: (t) => L.room(t.roomId)?.guestName ?? '', csv: (t) => L.room(t.roomId)?.guestName ?? L.room(t.roomId)?.occupancy, cell: (t) => { const r = L.room(t.roomId); return (
-      <div className="min-w-0 max-w-[150px]"><div className="truncate text-sm text-ink">{r?.guestName ?? <span className="text-muted">No guest</span>}</div><OccupancyChip occ={r?.occupancy} /></div>) } },
     { key: 'staff', header: 'Staff', hideOnMobile: true, sort: (t) => L.name(t.personId), csv: (t) => L.name(t.personId), cell: (t) => <div className="max-w-[150px]"><PersonCell person={L.person(t.personId)} size={22} /></div> },
     { key: 'sop', header: 'SOP', hideOnMobile: true, sort: (t) => L.version(t.sopVersionId)?.code, csv: (t) => { const v = L.version(t.sopVersionId); return `${v?.code} v${v?.version}` }, cell: (t) => { const v = L.version(t.sopVersionId); return (
       <div className="min-w-0 whitespace-nowrap"><div className="text-xs font-semibold text-ink">{v?.code}</div><div className="text-xs text-muted">v{v?.version}</div></div>) } },
     { key: 'window', header: 'Window', hideOnMobile: true, sort: (t) => t.start, csv: (t) => fWindow(t), cell: (t) => <span className="whitespace-nowrap text-sm tabular text-ink-2">{days > 1 && <span className="text-muted">{hotelDateKey(t.start).slice(5)} · </span>}{fWindow(t)}</span> },
-    { key: 'status', header: 'Status', sort: (t) => ATTENTION[taskState(t, now).key], csv: (t) => taskState(t, now).label, cell: (t) => <TaskStatusBadge task={t} now={now} /> },
-    { key: 'priority', header: 'Priority', hideOnMobile: true, sort: (t) => PRIORITY[t.priority].rank, csv: (t) => PRIORITY[t.priority].label, cell: (t) => <PriorityBadge priority={t.priority} hideStandard /> },
+    { key: 'status', header: 'Status', sort: (t) => ATTENTION[taskState(t, now).key] * 10 - PRIORITY[t.priority].rank, csv: (t) => `${taskState(t, now).label} · ${PRIORITY[t.priority].label}`, cell: (t) => (
+      <div className="flex flex-col items-start gap-1"><TaskStatusBadge task={t} now={now} /><PriorityBadge priority={t.priority} hideStandard /></div>) },
     { key: 'elapsed', header: 'Time', align: 'right', hideOnMobile: true, sort: (t) => taskTiming(t, L.version(t.sopVersionId), now).elapsed ?? -1,
       csv: (t) => { const x = taskTiming(t, L.version(t.sopVersionId), now); return x.elapsed == null ? '' : `${x.elapsed}/${x.target}` },
       cell: (t) => { const x = taskTiming(t, L.version(t.sopVersionId), now); return x.elapsed == null ? <span className="whitespace-nowrap text-xs text-muted">—/{x.target}m</span> : (
