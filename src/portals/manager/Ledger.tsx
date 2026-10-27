@@ -1,8 +1,8 @@
 import clsx from 'clsx'
-import { BellRing, Download, ShieldCheck } from 'lucide-react'
+import { BellRing, Check, Download, ShieldCheck } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Avatar, Badge, Button, Card, Drawer, EmptyState, PageHeader, SearchBox, StatCard, Timeline } from '@/components/ui'
+import { Avatar, Badge, Button, Card, Drawer, EmptyState, IconButton, PageHeader, SearchBox, StatCard, Timeline } from '@/components/ui'
 import { byId, useDB } from '@/lib/db'
 import { downloadCsv } from '@/lib/csv'
 import { fDate, fDateTime, hotelDateKey } from '@/lib/time'
@@ -100,9 +100,9 @@ export function AcknowledgmentLedger() {
                 <tr className="border-b border-line">
                   <th className="th sticky left-0 z-10 bg-surface-2">Staff member</th>
                   {cols.map((v) => { const s = perSop(v); return (
-                    <th key={v.id} className="th min-w-[150px] align-bottom normal-case tracking-normal">
+                    <th key={v.id} className="th min-w-[124px] align-bottom normal-case tracking-normal">
                       <div className="text-xs font-semibold text-ink">{v.code}</div>
-                      <div className="text-2xs font-normal text-muted">v{v.version} · {byId(jobRoles, v.jobRoleId)?.name}</div>
+                      <div className="text-2xs font-normal text-muted">v{v.version}</div>
                       {s.total > 0 && <div className="mt-1.5 flex items-center gap-2"><Meter value={s.ack} max={s.total} tone={s.ack === s.total ? 'success' : 'warning'} label={`${v.code}: ${s.ack} of ${s.total} acknowledged`} /><span className="text-2xs font-semibold tabular text-ink-2">{pct(s.ack, s.total)}%</span></div>}
                     </th>
                   ) })}
@@ -118,10 +118,9 @@ export function AcknowledgmentLedger() {
                     {cols.map((v) => { const c = cell(p, v); return (
                       <td key={v.id} className="px-4 py-2.5">
                         {c.state === 'na' ? <span className="text-xs text-muted" aria-label="Not required">—</span> : (
-                          <button type="button" onClick={() => setOpen({ p, v })} className={clsx('inline-flex flex-col items-start rounded-cell border px-2 py-1 text-left text-2xs font-semibold leading-tight transition hover:shadow-pop', CELL[c.state].cls)}
-                            aria-label={`${p.name}, ${v.code}: ${CELL[c.state].label}`}>
-                            {CELL[c.state].label}
-                            {c.state !== 'none' && <span className="font-normal opacity-80">{fDate((c.ev?.acknowledgedAt ?? c.ev?.openedAt)!)}</span>}
+                          <button type="button" onClick={() => setOpen({ p, v })} className={clsx('inline-flex items-center gap-1 whitespace-nowrap rounded-pill border px-2 py-0.5 text-2xs font-semibold transition hover:shadow-pop', CELL[c.state].cls)}
+                            aria-label={`${p.name}, ${v.code}: ${CELL[c.state].label}${c.state !== 'none' ? ` ${fDate((c.ev?.acknowledgedAt ?? c.ev?.openedAt)!)}` : ''}`}>
+                            {c.state === 'ack' ? <><Check size={11} strokeWidth={3} aria-hidden />{fDate(c.ev!.acknowledgedAt!)}</> : c.state === 'opened' ? <>Opened {fDate(c.ev!.openedAt!)}</> : 'Not opened'}
                           </button>
                         )}
                       </td>
@@ -129,7 +128,7 @@ export function AcknowledgmentLedger() {
                     <td className="px-4 py-2.5 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <span className={clsx('text-xs font-semibold tabular', pp.ack === pp.total ? 'text-ok' : 'text-ink')}>{pct(pp.ack, pp.total)}%</span>
-                        {gaps.length > 0 && <Button size="xs" variant="ghost" icon={BellRing} onClick={() => remind([p.id], gaps.map((v) => `${v.code} v${v.version}`).join(', '))} aria-label={`Remind ${p.name}`}>Remind</Button>}
+                        {gaps.length > 0 && <IconButton size="sm" icon={BellRing} label={`Remind ${p.name}`} onClick={() => remind([p.id], gaps.map((v) => `${v.code} v${v.version}`).join(', '))} />}
                       </div>
                     </td>
                   </tr>
@@ -138,7 +137,7 @@ export function AcknowledgmentLedger() {
               <tfoot className="bg-surface-2">
                 <tr className="border-t border-line">
                   <td className="sticky left-0 z-10 bg-surface-2 px-4 py-2 text-xs font-medium text-muted">Remind by SOP</td>
-                  {cols.map((v) => <td key={v.id} className="px-4 py-2">{outstanding(v).length > 0 ? <Button size="xs" variant="secondary" icon={BellRing} onClick={() => remind(outstanding(v), `${v.code} v${v.version}`)}>{outstanding(v).length} outstanding</Button> : <span className="text-xs text-ok">All confirmed</span>}</td>)}
+                  {cols.map((v) => <td key={v.id} className="px-4 py-2">{outstanding(v).length > 0 ? <Button size="xs" variant="secondary" icon={BellRing} onClick={() => remind(outstanding(v), `${v.code} v${v.version}`)} aria-label={`Remind ${outstanding(v).length} outstanding on ${v.code}`}>Remind {outstanding(v).length}</Button> : <span className="whitespace-nowrap text-xs text-ok">All confirmed</span>}</td>)}
                   <td />
                 </tr>
               </tfoot>
@@ -147,7 +146,7 @@ export function AcknowledgmentLedger() {
         )}
         <div className="flex flex-wrap gap-4 border-t border-line px-4 py-2.5 text-2xs text-muted">
           {(['ack', 'opened', 'none'] as const).map((k) => <span key={k} className="flex items-center gap-1.5"><span className={clsx('h-2.5 w-2.5 rounded-sm border', CELL[k].cls)} />{CELL[k].label}</span>)}
-          <span>— not required for that role</span>
+          <span className="flex items-center gap-1"><Check size={11} aria-hidden /> date acknowledged</span><span>— not required for that role</span>
         </div>
       </Card>
 

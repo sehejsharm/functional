@@ -33,7 +33,7 @@ export function Incidents() {
   const [id, setId] = useQueryParam('id')
   const [isNew, setNew] = useQueryParam('new')
   const [, setParams] = useSearchParams()
-  const closeNew = () => setParams((p) => { const n = new URLSearchParams(p); ['new', 'room', 'task'].forEach((k) => n.delete(k)); return n }, { replace: true })
+  const closeNew = (openId?: string) => setParams((p) => { const n = new URLSearchParams(p); ['new', 'room', 'task'].forEach((k) => n.delete(k)); if (openId) n.set('id', openId); return n }, { replace: true })
   const [tab, setTab] = useState<'active' | 'resolved' | 'all'>('active')
   const [category, setCategory] = useState('')
   const [severity, setSeverity] = useState('')
@@ -78,7 +78,7 @@ export function Incidents() {
         </>}
         empty={<EmptyState compact icon={CheckCircle2} title={tab === 'active' ? 'No open incidents' : 'No incidents match'} description={tab === 'active' ? 'Everything raised from the floor has been dealt with.' : 'Try another tab or clear the filters.'} />} />
       <IncidentDrawer issueId={id || null} onClose={() => setId(null)} people={people} />
-      <LogIncident open={isNew === '1'} onClose={closeNew} onCreated={(nid) => setId(nid)} rooms={rooms} people={people} />
+      <LogIncident open={isNew === '1'} onClose={() => closeNew()} onCreated={(nid) => closeNew(nid)} rooms={rooms} people={people} />
     </div>
   )
 }
@@ -182,7 +182,7 @@ function LogIncident({ open, onClose, onCreated, rooms, people }: { open: boolea
     const issue = useDB.getState().reportIssue(task?.id ?? null, actor, f.text.trim(), { category: f.category, severity: f.severity, title: f.title.trim(), roomId: f.roomId || undefined })
     if (f.assignee) useDB.getState().updateIssue(issue.id, actor, { assignedToId: f.assignee, status: 'in_progress', note: `Assigned to ${people.find((p) => p.id === f.assignee)?.name}` })
     toast.success('Incident logged', { description: `${f.title.trim()}${f.assignee ? ` · assigned to ${people.find((p) => p.id === f.assignee)?.name}` : ''}` })
-    onClose(); setTimeout(() => onCreated(issue.id), 50)
+    onCreated(issue.id)
   }
   return (
     <Modal open={open} onClose={onClose} size="lg" title="Log an incident" description="Raise something you saw or were told about. The duty team sees it immediately."

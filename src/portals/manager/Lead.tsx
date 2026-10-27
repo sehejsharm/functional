@@ -72,13 +72,13 @@ export function PropertyBoard() {
             return (
               <section key={f} aria-label={`Floor ${f}`}>
                 <h2 className="mb-2 flex items-baseline gap-2 text-sm font-semibold text-ink">Floor {f}<span className="text-xs font-normal text-muted">{list.length} rooms</span></h2>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-10">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
                   {list.map((r) => {
                     const t = roomTask(r), st = t ? taskState(t, now) : null, o = OCCUPANCY[r.occupancy ?? 'vacant_clean']
                     return (
                       <button key={r.id} type="button" onClick={() => (t ? setTaskId(t.id) : setRoomId(r.id))}
                         aria-label={`Room ${r.number}, ${o.label}${r.vip ? ', VIP' : ''}${st ? `, ${st.label}, ${L.name(t!.personId)}` : ', no work today'}`}
-                        className={clsx('flex min-h-[92px] flex-col rounded-cell border p-2.5 text-left transition hover:-translate-y-px hover:shadow-pop', o.tile)}>
+                        className={clsx('flex min-h-[84px] flex-col rounded-cell border p-2.5 text-left transition hover:-translate-y-px hover:shadow-pop', o.tile)}>
                         <div className="flex items-center justify-between gap-1">
                           <span className="flex items-center gap-1 text-[15px] font-bold tabular text-ink">{r.number}{r.vip && <Crown size={12} className="text-gold-700" aria-hidden />}</span>
                           <span className="rounded bg-surface/70 px-1 text-[9px] font-bold text-ink-2">{o.short}</span>
@@ -267,7 +267,7 @@ export function OperationsPulse() {
         <StatCard label="Open incidents" value={openIssues.length} icon={AlertOctagon} to="/manager/incidents" hint={`${openIssues.filter((i) => i.severity === 'critical').length} critical`} />
         <StatCard label={live ? `On shift · ${live.name}` : 'On shift'} value={checkedIn} unit={live ? `/${live.staffTarget}` : undefined} icon={Users} hint="checked in" />
       </div>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <Card>
           <CardHeader icon={BedDouble} title="Throughput" description={range === 'today' ? 'Rooms finished per hour today · the current hour is highlighted' : 'Average rooms finished per hour over the last 14 days'}
             actions={<Segmented size="sm" value={range} onChange={setRange} items={[{ id: 'today', label: 'Today' }, { id: 'avg', label: '14-day avg' }]} />} />
@@ -278,7 +278,7 @@ export function OperationsPulse() {
           <div className="p-5">{byCat.length ? <Donut data={byCat} label="Incidents by category" center={{ value: recentIssues.length, caption: 'incidents' }} /> : <EmptyState compact title="No incidents this week" />}</div>
         </Card>
       </div>
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader icon={AlertTriangle} title="Alerts" description="What needs a decision now, most serious first" />
           {alerts.length ? (

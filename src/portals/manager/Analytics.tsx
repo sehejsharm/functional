@@ -93,7 +93,7 @@ export function TeamProgress() {
         <StatCard label="Rooms completed" value={s.completed} icon={CheckCircle2} delta={hasPrev ? s.completed - sp.completed : null} deltaLabel={`vs prior ${P.n} days`} hint={!hasPrev ? `${rows.length} people` : undefined} />
         <StatCard label="Verification pass" value={vp.pct ?? '—'} unit={vp.pct == null ? undefined : '%'} icon={ShieldCheck} delta={delta(vp.pct, vpp.checked ? vpp.pct : null)} deltaLabel={`vs prior ${P.n} days`} hint={`${vp.checked} rooms checked`} />
       </div>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Section title="Daily trend" description="Completed days only; today is still running." icon={BarChart3}>
           <LineChart series={series} label="On-time and verification pass rate by day" max={100} target={80} />
         </Section>
@@ -102,7 +102,7 @@ export function TeamProgress() {
           <p className="mt-3 flex items-center gap-4 text-xs text-muted"><span className="flex items-center gap-1.5"><span className="h-2 w-3 rounded-sm bg-forest-700/80" />Within target</span><span className="flex items-center gap-1.5"><span className="h-2 w-3 rounded-sm bg-amber/80" />Over target</span></p>
         </Section>
       </div>
-      <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
         <Section title="On-time by person" icon={Gauge}>
           {rows.length ? <HBars data={[...rows].sort((a, b) => b.s.onTimePct - a.s.onTimePct).map((r) => ({ label: r.p.name, value: r.s.onTimePct, hint: `${r.s.completed} rooms` }))} suffix="%" max={100} /> : <EmptyState compact title="No work in this period" />}
         </Section>
@@ -163,7 +163,7 @@ export function SopResults() {
         <StatCard label="On-time across SOPs" value={all.onTimePct} unit="%" icon={Clock} hint={`avg ${signed(all.avgDelta)} min vs target`} />
         <StatCard label="Verification pass" value={vpAll.pct ?? '—'} unit={vpAll.pct == null ? undefined : '%'} icon={ShieldCheck} hint={`${vpAll.checked} rooms checked`} />
       </div>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Section title="On-time by SOP" description="The four most-run SOPs · 3-day rolling average, completed days" icon={BarChart3}>
           <LineChart series={series} label="On-time rate by SOP" max={100} area={false} />
         </Section>
@@ -270,7 +270,7 @@ export function StaffDetail() {
         <StatCard label="SOP acknowledgment" value={ack.pct ?? '—'} unit={ack.pct == null ? undefined : '%'} icon={BellRing} hint={ack.total ? `${ack.acked} of ${ack.total} versions` : 'No SOP for role'} />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-6">
           <Section title="On-time trend" description="Days with completed rooms, last 14 days" icon={BarChart3}>
             {trend.length > 1 ? <LineChart points={trend} label={`${p.name} on-time trend`} max={100} target={80} /> : <EmptyState compact title="Not enough history yet" description="The trend appears after two working days with completed rooms." />}

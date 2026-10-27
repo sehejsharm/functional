@@ -1,9 +1,9 @@
 // Presentational building blocks shared across the Manager portal screens.
 import clsx from 'clsx'
 import { AlertTriangle, Check, CheckCircle2, Crown, Info, Lock, ShieldCheck, X, XCircle, type LucideIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Avatar, Badge, Segmented, Tooltip } from '@/components/ui'
+import { Avatar, Badge, Segmented } from '@/components/ui'
 import { byId, useDB } from '@/lib/db'
 import { fTime } from '@/lib/time'
 import type { IssueSeverity, IssueStatus, Occupancy, Person, Priority, Room, Shift, SopVersion, Task } from '@/lib/types'
@@ -165,14 +165,12 @@ export function MiniRoom({ room, task, onClick, now }: { room: Room; task?: Task
   const mark = !st ? null : st.key === 'done' ? 'bg-ok' : st.key === 'awaiting_verification' ? 'bg-amber' : st.key === 'overdue' || st.key === 'returned' ? 'bg-danger' : st.key === 'in_progress' ? 'bg-info' : st.key === 'cancelled' ? 'bg-muted' : 'bg-ink-2/40'
   const label = `Room ${room.number}, ${o.label}${room.vip ? ', VIP' : ''}${st ? `, ${st.label}` : ', no work today'}`
   return (
-    <Tooltip label={<span>Room {room.number} · {o.label}{room.vip ? ' · VIP' : ''}<br />{st ? st.label : 'No work today'}</span>}>
-      <button type="button" onClick={onClick} aria-label={label}
-        className={clsx('relative grid h-9 w-full place-items-center rounded-md border text-[11px] font-semibold tabular text-ink transition hover:-translate-y-px hover:shadow-pop', o.tile)}>
-        {room.number}
-        {room.vip && <Crown size={9} className="absolute left-0.5 top-0.5 text-gold-700" aria-hidden />}
-        {mark && <span className={clsx('absolute right-0.5 top-0.5 h-2 w-2 rounded-full ring-2 ring-surface', mark, st?.key === 'in_progress' && 'animate-pulse')} aria-hidden />}
-      </button>
-    </Tooltip>
+    <button type="button" onClick={onClick} aria-label={label} title={`Room ${room.number} · ${o.label}${room.vip ? ' · VIP' : ''} — ${st ? st.label : 'No work today'}`}
+      className={clsx('relative grid h-9 w-full place-items-center rounded-md border text-[11px] font-semibold tabular text-ink transition hover:-translate-y-px hover:shadow-pop', o.tile)}>
+      {room.number}
+      {room.vip && <Crown size={9} className="absolute left-0.5 top-0.5 text-gold-700" aria-hidden />}
+      {mark && <span className={clsx('absolute right-0.5 top-0.5 h-2 w-2 rounded-full ring-2 ring-surface', mark, st?.key === 'in_progress' && 'animate-pulse')} aria-hidden />}
+    </button>
   )
 }
 
@@ -199,8 +197,16 @@ export function Meter({ value, max, tone = 'brand', label, className }: { value:
 /** One URL search param as state (filters and drawers survive reloads and can be linked to). */
 export function useQueryParam(key: string): [string, (v: string | null) => void] {
   const [params, setParams] = useSearchParams()
+  // Read from a ref, not the render's closure, so a setter called later (after a toast or timeout) never restores stale params.
+  const latest = useRef(params)
+  latest.current = params
   const value = params.get(key) ?? ''
-  const set = (v: string | null) => setParams((p) => { const n = new URLSearchParams(p); if (v) n.set(key, v); else n.delete(key); return n }, { replace: true })
+  const set = (v: string | null) => {
+    const n = new URLSearchParams(latest.current)
+    if (v) n.set(key, v); else n.delete(key)
+    latest.current = n
+    setParams(n, { replace: true })
+  }
   return [value, set]
 }
 

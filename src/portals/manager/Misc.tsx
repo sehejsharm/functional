@@ -111,7 +111,7 @@ export function ManagerOverview() {
           hint={confirmed >= shift.staffTarget ? 'At staff target' : `${shift.staffTarget - confirmed} short of target`} />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 space-y-6">
           <Card>
             <CardHeader icon={Zap} title="Needs attention" description="Verifications, overdue rooms, serious incidents and cover requests — oldest first within each."
@@ -223,6 +223,7 @@ export function GuidedOrStandard() {
   const rostered = [...new Set(shifts.flatMap((s) => s.memberIds))].map((id) => byId(people, id)!).filter(Boolean)
   const openOf = (p: Person) => tasks.filter((t) => t.personId === p.id && hotelDateKey(t.start) === today && (t.status === 'scheduled' || t.status === 'in_progress'))
   const rows = rostered.filter((p) => !shift || byId(shifts, shift)?.memberIds.includes(p.id))
+  const shiftsOf = (p: Person) => shifts.filter((s) => s.memberIds.includes(p.id)).map((s) => s.name).join(' & ')
   const history = (p: Person) => stats(tasks.filter((t) => t.personId === p.id && Date.parse(t.start) > now - 14 * DAY), sopVersions, now)
 
   const toggle = (p: Person, standard: boolean) => {
@@ -234,7 +235,7 @@ export function GuidedOrStandard() {
   const columns: Column<Person>[] = [
     { key: 'name', header: 'Staff member', sort: (p) => p.name, csv: (p) => p.name, cell: (p) => (
       <span className="flex items-center gap-2.5"><Avatar name={p.name} size={28} /><span className="min-w-0"><span className="block truncate text-sm font-medium text-ink">{p.name}</span><span className="block truncate text-xs text-muted">{p.title}</span></span></span>) },
-    { key: 'shift', header: 'Shift', hideOnMobile: true, sort: (p) => shifts.find((s) => s.memberIds.includes(p.id))?.name, csv: (p) => shifts.find((s) => s.memberIds.includes(p.id))?.name, cell: (p) => <span className="text-sm text-ink-2">{shifts.find((s) => s.memberIds.includes(p.id))?.name}</span> },
+    { key: 'shift', header: 'Shift', hideOnMobile: true, sort: (p) => shiftsOf(p), csv: (p) => shiftsOf(p), cell: (p) => <span className="text-sm text-ink-2">{shiftsOf(p)}</span> },
     { key: 'tenure', header: 'With us', hideOnMobile: true, sort: (p) => p.hiredAt, csv: (p) => p.hiredAt?.slice(0, 10), cell: (p) => { const y = (now - Date.parse(p.hiredAt ?? new Date(now).toISOString())) / (365 * DAY); return <span className="text-sm text-ink-2">{y >= 1 ? `${y.toFixed(1)} yrs` : `${Math.round(y * 12)} months`}</span> } },
     { key: 'ontime', header: 'On-time 14d', align: 'right', hideOnMobile: true, sort: (p) => history(p).onTimePct, csv: (p) => history(p).onTimePct, cell: (p) => { const h = history(p); return h.completed ? <span className="tabular">{h.onTimePct}%</span> : <span className="text-xs text-muted">No history</span> } },
     { key: 'open', header: 'Open rooms', align: 'right', sort: (p) => openOf(p).length, csv: (p) => openOf(p).length, cell: (p) => <span className="tabular">{openOf(p).length}</span> },
@@ -273,7 +274,7 @@ export function GuidedOrStandard() {
         </Card>
       </div>
       <DataTable rows={rows} columns={columns} rowKey={(p) => p.id} caption="Rostered staff and their mode" search={(p) => `${p.name} ${p.title}`} searchPlaceholder="Find a person"
-        exportName="guided-or-standard" pageSize={20}
+        exportName="guided-or-standard" pageSize={20} initialSort={{ key: 'open', dir: 'desc' }}
         filters={<FilterSelect label="Shift" value={shift} onChange={setShift}><option value="">All shifts</option>{shifts.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</FilterSelect>} />
     </div>
   )

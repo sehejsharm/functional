@@ -59,11 +59,11 @@ export function ManagerTasks() {
     { key: 'room', header: 'Room', sort: (t) => L.room(t.roomId)?.number, csv: (t) => L.room(t.roomId)?.number, cell: (t) => { const r = L.room(t.roomId); return (
       <div className="min-w-0">
         <div className="flex items-center gap-1 font-semibold tabular text-ink">{r?.number}{r?.vip && <Crown size={12} className="text-gold-700" aria-label="VIP" />}</div>
-        <div className="truncate text-xs text-muted">{r?.type}</div>
+        <div className="truncate text-xs text-muted">{r?.type}<span className="md:hidden"> · {L.person(t.personId)?.name.split(' ')[0]}</span></div>
       </div>) } },
     { key: 'guest', header: 'Guest', hideOnMobile: true, sort: (t) => L.room(t.roomId)?.guestName ?? '', csv: (t) => L.room(t.roomId)?.guestName ?? L.room(t.roomId)?.occupancy, cell: (t) => { const r = L.room(t.roomId); return (
       <div className="min-w-0 max-w-[150px]"><div className="truncate text-sm text-ink">{r?.guestName ?? <span className="text-muted">No guest</span>}</div><OccupancyChip occ={r?.occupancy} /></div>) } },
-    { key: 'staff', header: 'Staff', sort: (t) => L.name(t.personId), csv: (t) => L.name(t.personId), cell: (t) => <div className="max-w-[150px]"><PersonCell person={L.person(t.personId)} size={22} /></div> },
+    { key: 'staff', header: 'Staff', hideOnMobile: true, sort: (t) => L.name(t.personId), csv: (t) => L.name(t.personId), cell: (t) => <div className="max-w-[150px]"><PersonCell person={L.person(t.personId)} size={22} /></div> },
     { key: 'sop', header: 'SOP', hideOnMobile: true, sort: (t) => L.version(t.sopVersionId)?.code, csv: (t) => { const v = L.version(t.sopVersionId); return `${v?.code} v${v?.version}` }, cell: (t) => { const v = L.version(t.sopVersionId); return (
       <div className="min-w-0 whitespace-nowrap"><div className="text-xs font-semibold text-ink">{v?.code}</div><div className="text-xs text-muted">v{v?.version}</div></div>) } },
     { key: 'window', header: 'Window', hideOnMobile: true, sort: (t) => t.start, csv: (t) => fWindow(t), cell: (t) => <span className="whitespace-nowrap text-sm tabular text-ink-2">{days > 1 && <span className="text-muted">{hotelDateKey(t.start).slice(5)} · </span>}{fWindow(t)}</span> },

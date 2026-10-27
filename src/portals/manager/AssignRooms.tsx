@@ -3,7 +3,7 @@ import { CheckCircle2, ClipboardList, Crown, Eye, Layers, ListChecks, Shuffle, S
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  Avatar, Badge, Button, Card, CardHeader, Checkbox, DataTable, Drawer, EmptyState, Field, Input, PageHeader, SearchBox, Segmented, Select, Stepper, Textarea, Tooltip, type Column,
+  Avatar, Badge, Button, Card, CardHeader, Checkbox, DataTable, Drawer, EmptyState, Field, Input, PageHeader, SearchBox, Segmented, Select, Stepper, Textarea, type Column,
 } from '@/components/ui'
 import { byId, useDB } from '@/lib/db'
 import { useNow } from '@/lib/hooks'
@@ -73,7 +73,7 @@ export function AssignRooms() {
 
       {!ctx.accepting && <Callout tone="neutral" className="mb-5" title={`The ${ctx.shift.name.toLowerCase()} shift has closed for assignments`}>It ended at {fTime(ctx.shift.end)}. Pick a later shift above.</Callout>}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         {mode === 'single'
           ? <SingleAssign ctx={ctx} sopId={ctx.sop?.id ?? ''} setSopId={setSopId} reviewed={reviewed} setReviewed={setReviewed} preRoom={params.get('room')} prePerson={pre?.id} />
           : <BulkAssign ctx={ctx} sopId={ctx.sop?.id ?? ''} setSopId={setSopId} reviewed={reviewed} setReviewed={setReviewed} />}
@@ -156,10 +156,11 @@ function useRoomFilter(rooms: Room[]) {
   return { shown, toolbar, setFloor }
 }
 
-function RoomPick({ room, selected, blocker, onClick, multi }: { room: Room; selected: boolean; blocker: string | null; onClick: () => void; multi?: boolean }) {
+function RoomPick({ room, selected, blocker, onClick, onBlocked, multi }: { room: Room; selected: boolean; blocker: string | null; onClick: () => void; onBlocked: (why: string) => void; multi?: boolean }) {
   const o = OCCUPANCY[room.occupancy ?? 'vacant_clean']
-  const btn = (
-    <button type="button" disabled={!!blocker} onClick={onClick} aria-pressed={selected}
+  // Blocked rooms stay focusable (aria-disabled) so the reason is reachable by hover, keyboard and touch.
+  return (
+    <button type="button" aria-disabled={!!blocker || undefined} onClick={() => (blocker ? onBlocked(blocker) : onClick())} aria-pressed={selected} title={blocker ?? `Room ${room.number} · ${room.type} · ${o.label}${room.guestName ? ` · ${room.guestName}` : ''}`}
       aria-label={`Room ${room.number}, ${room.type}, ${o.label}${room.vip ? ', VIP' : ''}${room.guestName ? `, ${room.guestName}` : ''}${blocker ? ` — unavailable: ${blocker}` : ''}`}
       className={clsx('relative w-full rounded-cell border px-1.5 pb-1.5 pt-2 text-center transition', o.tile,
         selected ? 'ring-2 ring-forest-700 ring-offset-1' : 'hover:-translate-y-px hover:shadow-pop',
@@ -170,7 +171,6 @@ function RoomPick({ room, selected, blocker, onClick, multi }: { room: Room; sel
       <div className="mt-1 text-[10px] font-semibold text-ink-2">{o.short} · {TYPE_SHORT[room.type ?? ''] ?? room.type}</div>
     </button>
   )
-  return blocker ? <Tooltip label={blocker}>{btn}</Tooltip> : btn
 }
 
 function WorkloadPanel({ ctx, extra = {} }: { ctx: Ctx; extra?: Record<string, number> }) {
@@ -270,6 +270,7 @@ function SingleAssign({ ctx, sopId, setSopId, reviewed, setReviewed, preRoom, pr
   const [priority, setPriority] = useState<Priority>('standard')
   const [notes, setNotes] = useState('')
   const rf = useRoomFilter(ctx.rooms)
+  const [why, setWhy] = useState<string | null>(null)
   const v = ctx.version
   useEffect(() => { setStart(ctx.defaultStart); setPersonId((p) => (ctx.roster.some((r) => r.id === p) ? p : '')) }, [ctx.shift.id]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setPersonId((p) => (ctx.roster.some((r) => r.id === p) ? p : '')) }, [sopId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -301,7 +302,7 @@ function SingleAssign({ ctx, sopId, setSopId, reviewed, setReviewed, preRoom, pr
   return (
     <>
       <div className="min-w-0 space-y-4">
-        <Card className="px-5 py-4"><Stepper steps={['Standard', 'Staff member', 'Room', 'Time & priority']} current={current === -1 ? 4 : current} /></Card>
+        <Card className="hidden px-5 py-4 sm:block"><Stepper steps={['Standard', 'Staff member', 'Room', 'Time & priority']} current={current === -1 ? 4 : current} /></Card>
         <SopStep ctx={ctx} sopId={sopId} setSopId={setSopId} reviewed={reviewed} setReviewed={setReviewed} />
 
         <StepCard n={2} title="Staff member" done={steps[1]} hint={v ? `${ctx.roster.length} on the ${ctx.shift.name.toLowerCase()} shift do this job` : undefined}>
@@ -329,14 +330,15 @@ function SingleAssign({ ctx, sopId, setSopId, reviewed, setReviewed, preRoom, pr
           )}
         </StepCard>
 
-        <StepCard n={3} title="Room" done={steps[2]} hint={`${ctx.rooms.length} rooms · busy and out-of-order rooms are disabled — hover for why`}>
+        <StepCard n={3} title="Room" done={steps[2]} hint={`${ctx.rooms.length} rooms · busy and out-of-order rooms are greyed out — hover or tap one to see why`}>
           <div className="space-y-3">
             {rf.toolbar}
             <OccupancyLegend />
             <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6 lg:grid-cols-8 2xl:grid-cols-10">
-              {rf.shown.map((r) => <RoomPick key={r.id} room={r} selected={roomId === r.id} blocker={blockerOf(r)} onClick={() => setRoomId(r.id)} />)}
+              {rf.shown.map((r) => <RoomPick key={r.id} room={r} selected={roomId === r.id} blocker={blockerOf(r)} onClick={() => { setRoomId(r.id); setWhy(null) }} onBlocked={setWhy} />)}
             </div>
             {!rf.shown.length && <EmptyState compact title="No rooms match" description="Try another floor or search." />}
+            {why && <Callout tone="neutral" title="That room isn’t available" action={<button type="button" className="text-xs font-medium text-muted hover:text-ink" onClick={() => setWhy(null)}>Dismiss</button>}>{why}</Callout>}
             {room && roomBlock && <Callout tone="warning" title={`Room ${room.number} can’t take this`}>{roomBlock}</Callout>}
           </div>
         </StepCard>
@@ -401,6 +403,7 @@ function BulkAssign({ ctx, sopId, setSopId, reviewed, setReviewed }: { ctx: Ctx;
   const [notes, setNotes] = useState('')
   const [result, setResult] = useState<{ created: Task[]; skipped: { roomId: string; reason: string }[] } | null>(null)
   const rf = useRoomFilter(ctx.rooms)
+  const [why, setWhy] = useState<string | null>(null)
   const v = ctx.version
   useEffect(() => { setStart(ctx.defaultStart); setStaff([]); setPicked([]) }, [ctx.shift.id]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setStaff((s) => s.filter((id) => ctx.roster.some((r) => r.id === id))) }, [sopId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -479,8 +482,9 @@ function BulkAssign({ ctx, sopId, setSopId, reviewed, setReviewed }: { ctx: Ctx;
             {rf.toolbar}
             <OccupancyLegend />
             <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6 lg:grid-cols-8 2xl:grid-cols-10">
-              {rf.shown.map((r) => <RoomPick key={r.id} multi room={r} selected={picked.includes(r.id)} blocker={blockerOf(r)} onClick={() => toggleRoom(r.id)} />)}
+              {rf.shown.map((r) => <RoomPick key={r.id} multi room={r} selected={picked.includes(r.id)} blocker={blockerOf(r)} onClick={() => { toggleRoom(r.id); setWhy(null) }} onBlocked={setWhy} />)}
             </div>
+            {why && <Callout tone="neutral" title="That room isn’t available" action={<button type="button" className="text-xs font-medium text-muted hover:text-ink" onClick={() => setWhy(null)}>Dismiss</button>}>{why}</Callout>}
           </div>
         </StepCard>
         <StepCard n={4} title="Timing & priority" done={!!startIso} hint={`Each room gets the ${v?.timeTargetMin ?? '—'} min SOP target plus a ${BUFFER_MIN} min buffer`}>
@@ -499,12 +503,6 @@ function BulkAssign({ ctx, sopId, setSopId, reviewed, setReviewed }: { ctx: Ctx;
             : <EmptyState compact icon={ListChecks} title="No plan yet" description="Pick at least one person and one room." />}
         </Card>
 
-        {result && (
-          <Callout tone={result.skipped.length ? 'warning' : 'success'} title={`${result.created.length} assigned, ${result.skipped.length} skipped`}
-            action={<Link to="/manager/tasks" className="link text-sm">Open Live tasks</Link>}>
-            {result.skipped.length > 0 && <ul className="mt-1 list-inside list-disc space-y-0.5">{result.skipped.map((s) => <li key={s.roomId}>Room {byId(ctx.rooms, s.roomId)?.number}: {s.reason.replace(/^Room \d+ /, '')}</li>)}</ul>}
-          </Callout>
-        )}
       </div>
 
       <aside className="min-w-0 space-y-4 xl:sticky xl:top-20 xl:self-start">
@@ -521,6 +519,12 @@ function BulkAssign({ ctx, sopId, setSopId, reviewed, setReviewed }: { ctx: Ctx;
             <Button variant="gold" size="lg" block icon={CheckCircle2} disabled={!!missing.length || !ctx.accepting} onClick={submit}>Assign {ready.length || ''} room{ready.length === 1 ? '' : 's'}</Button>
           </div>
         </Card>
+        {result && (
+          <Callout tone={result.skipped.length ? 'warning' : 'success'} title={`${result.created.length} assigned, ${result.skipped.length} skipped`}
+            action={<Link to="/manager/tasks" className="link text-sm">Open Live tasks</Link>}>
+            {result.skipped.length > 0 && <ul className="mt-1 list-inside list-disc space-y-0.5">{result.skipped.map((s) => <li key={s.roomId}>Room {byId(ctx.rooms, s.roomId)?.number}: {s.reason.replace(/^Room \d+ /, '')}</li>)}</ul>}
+          </Callout>
+        )}
         <WorkloadPanel ctx={ctx} extra={extra} />
       </aside>
     </>

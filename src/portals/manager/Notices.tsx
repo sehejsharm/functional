@@ -35,7 +35,7 @@ export function HotelNotices() {
   const [prefill, setPrefill] = useState<Partial<Notice> | null>(null)
   const composing = params.get('new') === '1'
   const openComposer = (p: Partial<Notice> | null) => { setPrefill(p); setParams((x) => { const n = new URLSearchParams(x); n.set('new', '1'); return n }, { replace: true }) }
-  const closeComposer = () => setParams((x) => { const n = new URLSearchParams(x); n.delete('new'); n.delete('to'); return n }, { replace: true })
+  const closeComposer = (openNotice?: string) => setParams((x) => { const n = new URLSearchParams(x); n.delete('new'); n.delete('to'); if (openNotice) n.set('notice', openNotice); return n }, { replace: true })
 
   const sent = notices.filter((n) => n.sentAt).sort((a, b) => b.sentAt!.localeCompare(a.sentAt!))
   const drafts = notices.filter((n) => n.sample)
@@ -84,7 +84,7 @@ export function HotelNotices() {
         )}
       </div>
       <NoticeDrawer noticeId={noticeId || null} onClose={() => setNoticeId(null)} onResend={(n) => openComposer({ title: n.title, body: n.body, priority: n.priority, replyNeeded: n.replyNeeded, teamShiftId: n.teamShiftId, audience: n.audience, recipientIds: n.recipientIds })} />
-      <Composer open={composing} prefill={prefill} toParam={params.get('to')} onClose={closeComposer} onSent={(id) => { setTab('sent'); setTimeout(() => setNoticeId(id), 60) }} />
+      <Composer open={composing} prefill={prefill} toParam={params.get('to')} onClose={() => closeComposer()} onSent={(id) => { setTab('sent'); closeComposer(id) }} />
     </div>
   )
 }
@@ -168,7 +168,7 @@ function Composer({ open, prefill, toParam, onClose, onSent }: { open: boolean; 
     useDB.getState().sendNotice({ title: title.trim(), body: body.trim(), replyNeeded, audience, teamShiftId: audience === 'team' ? team.id : undefined, recipientIds: recipients, sentById: me?.id ?? 'elena', priority })
     const id = useDB.getState().notices[0]?.id
     toast.success('Notice sent', { description: `“${title.trim()}” to ${recipients.length} ${recipients.length === 1 ? 'person' : 'people'}${replyNeeded ? ' · reply requested' : ''}` })
-    onClose(); if (id) onSent(id)
+    if (id) onSent(id); else onClose()
   }
   return (
     <Modal open={open} onClose={onClose} size="lg" title="New hotel notice" description="Arrives on each person’s phone with a confirm button. Opening or replying is never task acceptance."
