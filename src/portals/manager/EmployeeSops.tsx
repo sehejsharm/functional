@@ -2,8 +2,7 @@ import { Archive, BookOpen, CheckCircle2, ClipboardCheck, Eye, FileClock, Hourgl
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Avatar, Badge, Button, Card, CardHeader, DataTable, Drawer, EmptyState, Field, KeyValue, PageHeader, Select, Stepper, Tabs, Textarea, type Column,
-} from '@/components/ui'
+  Avatar, Badge, Button, Card, CardHeader, DataTable, Drawer, EmptyState, Field, KeyValue, PageHeader, Select, Stepper, Tabs, Textarea, type Column, ButtonLink } from '@/components/ui'
 import { APPROVALS_REQUIRED, byId, useDB } from '@/lib/db'
 import { useNow } from '@/lib/hooks'
 import { fDate, fDateTime, hotelDateKey } from '@/lib/time'
@@ -27,12 +26,13 @@ export function EmployeeSops() {
 
   const rows: Row[] = sops.map((sop) => {
     const v = byId(sopVersions, sop.currentVersionId) ?? sopVersions.filter((x) => x.sopId === sop.id).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]
-    if (!v) return null
+    // Private drafts and rejected first versions aren't staff-facing; only versions under review are listed.
+    if (!v || (!sop.currentVersionId && v.status !== 'in_review' && v.status !== 'changes_requested')) return null
     const vIds = sopVersions.filter((x) => x.sopId === sop.id).map((x) => x.id)
     const mine = tasks.filter((t) => vIds.includes(t.sopVersionId))
     const staff = people.filter((p) => p.jobRoleId === v.jobRoleId)
     return {
-      sop, v, tab: (sop.retiredAt ? 'retired' : sop.currentVersionId ? 'published' : 'review') as Tab,
+      sop: { ...sop, department: sop.department ?? byId(jobRoles, v.jobRoleId)?.team }, v, tab: (sop.retiredAt ? 'retired' : sop.currentVersionId ? 'published' : 'review') as Tab,
       today: mine.filter((t) => hotelDateKey(t.start) === today).length, d14: mine.filter((t) => Date.parse(t.start) > now - 14 * DAY).length,
       ack: { n: staff.filter((p) => ackEvents.some((a) => a.personId === p.id && a.kind === 'sop' && a.refId === v.id && a.acknowledgedAt)).length, total: staff.length },
     }
@@ -55,7 +55,7 @@ export function EmployeeSops() {
   return (
     <div>
       <PageHeader title="Employee SOPs" description="The standards behind every task, exactly as staff see them. Managers read and request changes; authors edit."
-        actions={<Link to="/manager/sop-policy"><Button variant="secondary" icon={ClipboardCheck}>Hotel SOP policy</Button></Link>}>
+        actions={<ButtonLink to="/manager/sop-policy" variant="secondary" icon={ClipboardCheck}>Hotel SOP policy</ButtonLink>}>
         <Tabs value={tab} onChange={setTab} items={[{ id: 'published', label: 'Published', count: count('published') }, { id: 'review', label: 'In review', count: count('review') }, { id: 'retired', label: 'Retired', count: count('retired') }]} />
       </PageHeader>
       {tab === 'review' && <Callout className="mb-4" tone="info" title="Not assignable yet">These versions need {APPROVALS_REQUIRED} independent approvals before they can be released and assigned.</Callout>}
@@ -90,7 +90,7 @@ function SopDrawer({ sopId, onClose }: { sopId: string | null; onClose: () => vo
     setText(''); setStepId('')
   }
   return (
-    <Drawer open={!!sopId} onClose={onClose} width="lg" title={`${v.code} · ${v.title}`} description={`${sop.department} · for ${byId(jobRoles, v.jobRoleId)?.name.toLowerCase()}s`}>
+    <Drawer open={!!sopId} onClose={onClose} width="lg" title={`${v.code} · ${v.title}`} description={`${sop.department ?? byId(jobRoles, v.jobRoleId)?.team ?? 'Hotel'} · for ${byId(jobRoles, v.jobRoleId)?.name.toLowerCase()}s`}>
       <div className="space-y-5">
         <div className="flex flex-wrap gap-2">
           <Badge tone="brand">v{v.version}</Badge>

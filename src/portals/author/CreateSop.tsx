@@ -671,8 +671,8 @@ function StepCard({ i, s, total, readOnly, error, noteError, onChange, onMove, o
           <Textarea id={`step-${i}-care`} rows={2} maxLength={400} value={s.guestCare} onChange={(e) => onChange({ guestCare: e.target.value })} placeholder="e.g. If a guest answers, offer a later time — never enter an occupied room." />
         </Field>
         <div className="grid gap-2 sm:grid-cols-2">
-          <div className="rounded-cell border border-line px-3 py-2.5"><Switch checked={s.requireCheck} disabled={readOnly} onChange={(v) => onChange({ requireCheck: v })} label="Independent check" description="Someone else verifies this before the task closes." /></div>
-          <div className="rounded-cell border border-line px-3 py-2.5"><Switch checked={s.allowPhoto} disabled={readOnly} onChange={(v) => onChange({ allowPhoto: v })} label="Allow photo" description="Staff can attach a photo as evidence." /></div>
+          <div className="rounded-cell border border-line px-3 py-2.5"><Switch checked={s.requireCheck} disabled={readOnly} ariaLabel={`Step ${n}: independent check`} onChange={(v) => onChange({ requireCheck: v })} label="Independent check" description="Someone else verifies this before the task closes." /></div>
+          <div className="rounded-cell border border-line px-3 py-2.5"><Switch checked={s.allowPhoto} disabled={readOnly} ariaLabel={`Step ${n}: allow photo`} onChange={(v) => onChange({ allowPhoto: v })} label="Allow photo" description="Staff can attach a photo as evidence." /></div>
         </div>
       </div>
     </li>

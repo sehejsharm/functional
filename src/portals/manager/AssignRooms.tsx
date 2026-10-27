@@ -149,7 +149,7 @@ function useRoomFilter(rooms: Room[]) {
   })
   const toolbar = (
     <div className="flex flex-wrap items-center gap-2">
-      <SearchBox value={q} onChange={setQ} placeholder="Room, guest, type, status or yesterday’s attendant" className="w-full sm:w-80" />
+      <SearchBox value={q} onChange={setQ} placeholder="Room, guest or status" className="w-full sm:w-80" />
       <Segmented size="sm" value={floor} onChange={setFloor} items={[{ id: 'all', label: 'All floors' }, { id: '1', label: 'Floor 1' }, { id: '2', label: 'Floor 2' }, { id: '3', label: 'Floor 3' }]} />
     </div>
   )
@@ -420,12 +420,14 @@ function BulkAssign({ ctx, sopId, setSopId, reviewed, setReviewed }: { ctx: Ctx;
     const order = picked.map((id) => byId(ctx.rooms, id)!).filter(Boolean).sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true }))
     const cursor: Record<string, number> = {}
     staff.forEach((pid) => { cursor[pid] = Math.max(Date.parse(startIso), ctx.load(pid).lastEnd ? ctx.load(pid).lastEnd + BUFFER_MIN * MIN : 0) })
+    // The first start must fall inside the shift (and so on its hotel date) — otherwise the one-open-task rule could be sidestepped.
+    const outside = Date.parse(startIso) < Date.parse(ctx.shift.start) ? 'Starts before the shift opens' : Date.parse(startIso) >= Date.parse(ctx.shift.end) ? 'Starts after the shift closes' : null
     return order.map((r, i) => {
       const pid = staff[i % staff.length]
       const s = roundUp5(cursor[pid]), e = s + v.timeTargetMin * MIN
       cursor[pid] = e + BUFFER_MIN * MIN
       const block = assignBlocker({ sopId, roomId: r.id, shiftId: ctx.shift.id, start: new Date(s).toISOString() })
-      return { roomId: r.id, personId: pid, start: new Date(s).toISOString(), end: new Date(e).toISOString(), problem: block ?? (e > Date.parse(ctx.shift.end) ? 'Would finish after the shift closes' : null) }
+      return { roomId: r.id, personId: pid, start: new Date(s).toISOString(), end: new Date(e).toISOString(), problem: outside ?? block ?? (e > Date.parse(ctx.shift.end) ? 'Would finish after the shift closes' : null) }
     })
   }, [v, staff, picked, startIso, ctx, sopId, assignBlocker])
 

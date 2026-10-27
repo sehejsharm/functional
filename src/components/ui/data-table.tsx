@@ -76,7 +76,7 @@ export function DataTable<T>({ rows, columns, rowKey, search, searchPlaceholder 
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
   useEffect(() => { if (page > pages - 1) setPage(0) }, [pages, page])
   const visible = filtered.slice(page * pageSize, page * pageSize + pageSize)
-  const selected = rows.filter((r) => sel.has(rowKey(r)))
+  const selected = filtered.filter((r) => sel.has(rowKey(r)))
   const allOnPage = visible.length > 0 && visible.every((r) => sel.has(rowKey(r)))
   const someOnPage = visible.some((r) => sel.has(rowKey(r)))
   const clear = () => setSel(new Set())
@@ -111,7 +111,7 @@ export function DataTable<T>({ rows, columns, rowKey, search, searchPlaceholder 
           <div className="ml-auto flex flex-wrap gap-2">{bulkActions?.(selected, clear)}</div>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div className="scroll-shadow-x overflow-x-auto">
         <table className="w-full border-collapse">
           {caption && <caption className="sr-only">{caption}</caption>}
           <thead className="bg-surface-2">
@@ -142,7 +142,7 @@ export function DataTable<T>({ rows, columns, rowKey, search, searchPlaceholder 
               const k = rowKey(r), on = sel.has(k)
               return (
                 <tr key={k} onClick={onRowClick ? () => onRowClick(r) : undefined} tabIndex={onRowClick ? 0 : undefined}
-                  onKeyDown={onRowClick ? (e) => { if (e.key === 'Enter') onRowClick(r) } : undefined}
+                  onKeyDown={onRowClick ? (e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onRowClick(r) } } : undefined}
                   className={clsx('border-b border-line last:border-0 transition-colors', on ? 'bg-forest-50/70' : 'hover:bg-surface-2', onRowClick && 'cursor-pointer', rowClassName?.(r))}>
                   {selectable && <td className={clsx('w-10 px-4', pad)} onClick={(e) => e.stopPropagation()}><Checkbox ariaLabel="Select row" checked={on} onChange={() => setSel((s) => { const n = new Set(s); on ? n.delete(k) : n.add(k); return n })} /></td>}
                   {columns.map((c) => (
@@ -153,7 +153,9 @@ export function DataTable<T>({ rows, columns, rowKey, search, searchPlaceholder 
             })}
           </tbody>
         </table>
-        {!visible.length && (empty ?? <EmptyState compact title={q ? 'No matches' : 'Nothing here yet'} description={q ? `Nothing matches “${q}”. Try another search.` : undefined} />)}
+        {!visible.length && (q
+          ? <EmptyState compact title="No matches" description={`Nothing matches “${q}”.`} action={<Button size="sm" variant="secondary" onClick={() => setQ('')}>Clear search</Button>} />
+          : empty ?? <EmptyState compact title="Nothing here yet" />)}
       </div>
       {filtered.length > pageSize && (
         <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2.5 text-xs text-muted">

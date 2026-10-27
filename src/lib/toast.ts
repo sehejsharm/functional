@@ -27,11 +27,16 @@ export interface ConfirmOptions { title: string; body?: string; confirmLabel?: s
 interface ConfirmStore { req: (ConfirmOptions & { resolve: (v: false | { value: string }) => void }) | null }
 export const useConfirmStore = create<ConfirmStore>(() => ({ req: null }))
 
+// A new request cancels any request still open, so no caller is left waiting forever.
+function ask(o: ConfirmOptions, resolve: (v: false | { value: string }) => void) {
+  useConfirmStore.getState().req?.resolve(false)
+  useConfirmStore.setState({ req: { ...o, resolve } })
+}
 /** Resolves `true` when confirmed. With `input`, use `prompt()` instead to get the typed value. */
 export function confirm(o: ConfirmOptions): Promise<boolean> {
-  return new Promise((resolve) => useConfirmStore.setState({ req: { ...o, resolve: (v) => resolve(v !== false) } }))
+  return new Promise((resolve) => ask(o, (v) => resolve(v !== false)))
 }
 /** Confirm with a text field (a reason, a note). Resolves to the text, or null if cancelled. */
 export function prompt(o: ConfirmOptions & { input: NonNullable<ConfirmOptions['input']> }): Promise<string | null> {
-  return new Promise((resolve) => useConfirmStore.setState({ req: { ...o, resolve: (v) => resolve(v === false ? null : v.value) } }))
+  return new Promise((resolve) => ask(o, (v) => resolve(v === false ? null : v.value)))
 }

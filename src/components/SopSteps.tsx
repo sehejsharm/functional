@@ -21,7 +21,7 @@ export function SopSteps({ steps, version, done = [], photos = [], interactive, 
     <section className="card overflow-hidden" aria-label="Steps">
       <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
         <div>
-          <h3 className="text-[15px] font-semibold text-ink">{title ?? (mode === 'standard' ? 'Milestones' : 'Steps')}</h3>
+          <h2 className="text-[15px] font-semibold text-ink">{title ?? (mode === 'standard' ? 'Milestones' : 'Steps')}</h2>
           <p className="text-xs text-muted">{readOnly ? `${visible.length} step${visible.length === 1 ? '' : 's'}` : `${doneCount} of ${visible.length} done`}{mode === 'standard' ? ' · Standard mode' : ''}</p>
         </div>
         <span className="rounded-pill bg-forest-900 px-2.5 py-0.5 text-2xs font-semibold text-white">v{version}</span>
@@ -41,7 +41,7 @@ export function SopSteps({ steps, version, done = [], photos = [], interactive, 
               {readOnly
                 ? <span aria-hidden className={clsx('mt-0.5 grid shrink-0 place-items-center rounded-full bg-forest-50 font-semibold tabular text-forest-800 ring-1 ring-forest-700/15', compact ? 'h-6 w-6 text-xs' : 'h-7 w-7 text-sm')}>{n}</span>
                 : <button type="button" disabled={!interactive} onClick={() => onToggle?.(s.id)} aria-pressed={checked} aria-label={`Step ${n}${checked ? ', done' : ''}: ${s.instruction}`}
-                    className="mt-0.5 shrink-0 rounded-full disabled:cursor-not-allowed disabled:opacity-60"><CheckMark checked={checked} size={compact ? 24 : 28} /></button>}
+                    className="-m-2 mt-[-6px] shrink-0 rounded-full p-2 disabled:cursor-not-allowed disabled:opacity-60"><CheckMark checked={checked} size={compact ? 24 : 28} /></button>}
               <div className="min-w-0 flex-1">
                 <div className="flex items-start gap-2">
                   <span className="mt-[3px] text-muted"><StepIcon name={s.icon} /></span>

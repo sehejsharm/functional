@@ -3,7 +3,7 @@ import { Activity, AlertOctagon, AlertTriangle, BedDouble, CalendarRange, Clipbo
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Bars, Donut } from '@/components/Charts'
-import { Avatar, Badge, Button, Card, CardHeader, Drawer, EmptyState, KeyValue, PageHeader, SearchBox, Segmented, StatCard, Timeline, type Tone } from '@/components/ui'
+import { Avatar, Badge, Button, Card, CardHeader, Drawer, EmptyState, KeyValue, PageHeader, SearchBox, Segmented, StatCard, Timeline, type Tone, ButtonLink } from '@/components/ui'
 import { byId, useDB } from '@/lib/db'
 import { useNow } from '@/lib/hooks'
 import { fDate, fTime, hotelDateKey, hotelMidnight } from '@/lib/time'
@@ -57,7 +57,7 @@ export function PropertyBoard() {
       </div>
       <Card>
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
-          <SearchBox value={q} onChange={setQ} placeholder="Room, guest, type or attendant" className="w-full sm:w-60" />
+          <SearchBox value={q} onChange={setQ} placeholder="Room, guest or attendant" className="w-full sm:w-60" />
           <Segmented size="sm" value={floor} onChange={setFloor} items={[{ id: 'all', label: 'All floors' }, { id: '1', label: 'Floor 1' }, { id: '2', label: 'Floor 2' }, { id: '3', label: 'Floor 3' }]} />
           <FilterSelect label="Occupancy" value={occ} onChange={setOcc}><option value="">Any occupancy</option>{OCCUPANCY_ORDER.map((k) => <option key={k} value={k}>{OCCUPANCY[k].label}</option>)}</FilterSelect>
           <FilterSelect label="Today’s work" value={state} onChange={setState}><option value="">Any work status</option>{STATE_FILTER.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}</FilterSelect>
@@ -157,7 +157,7 @@ export function ShiftPlanner() {
   return (
     <div className="space-y-6">
       <PageHeader title="Shift planner" description="The week ahead: who’s rostered on each shift, who’s off, and where you fall below staff target."
-        actions={<Link to="/manager/shift-cover"><Button variant="primary" icon={Users}>Shift cover & time off</Button></Link>} />
+        actions={<ButtonLink to="/manager/shift-cover" variant="primary" icon={Users}>Shift cover & time off</ButtonLink>} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Gaps this week" value={gaps.length} icon={AlertTriangle} hint="shifts below target" />
         <StatCard label="At risk" value={risk.length} icon={Clock} hint="if pending time off is approved" />
@@ -200,7 +200,7 @@ export function ShiftPlanner() {
         </div>
       </Card>
       <Drawer open={!!cellSel} onClose={() => setCellSel(null)} title={sel ? `${sel.name} shift · ${wk(cellSel!.date)} ${fDate(`${cellSel!.date}T06:00:00Z`)}` : ''} description={sel ? `${fTime(sel.start)} – ${fTime(sel.end)} · target ${sel.staffTarget}` : ''}
-        footer={<Link to="/manager/shift-cover"><Button variant="primary">Arrange cover</Button></Link>}>
+        footer={<ButtonLink to="/manager/shift-cover" variant="primary">Arrange cover</ButtonLink>}>
         {sel && selCv && (
           <div className="space-y-4">
             <div className="flex items-center gap-2"><b className={clsx('text-2xl tabular', selCv.gap ? 'text-danger' : 'text-ink')}>{selCv.available}</b><span className="text-sm text-muted">of {sel.staffTarget} available</span>{selCv.gap && <Badge tone="danger">Below target</Badge>}</div>
@@ -251,7 +251,7 @@ export function OperationsPulse() {
   const alerts: Alert[] = [
     ...openIssues.filter((i) => i.severity === 'critical' || (i.severity === 'high' && !i.assignedToId)).map((i) => ({ id: i.id, rank: i.severity === 'critical' ? 0 : 1, tone: 'danger' as Tone, title: i.title, sub: `${SEVERITY[i.severity].label} · ${i.assignedToId ? L.name(i.assignedToId) : 'unassigned'} · ${fAge(i.at, now)} old`, to: `/manager/incidents?id=${i.id}` })),
     ...overdue.map((t) => ({ id: t.id, rank: t.priority === 'urgent' ? 0.5 : 1.5, tone: 'danger' as Tone, title: `Room ${L.room(t.roomId)?.number} overdue`, sub: `${L.name(t.personId)} · due ${fTime(t.end)} · ${fAge(t.end, now)} late`, to: `/manager/tasks?task=${t.id}` })),
-    ...awaiting.filter((t) => t.startedAt && now - Date.parse(t.startedAt) > 45 * 60_000).map((t) => ({ id: `w-${t.id}`, rank: 2, tone: 'warning' as Tone, title: `Room ${L.room(t.roomId)?.number} waiting for a check`, sub: `${L.name(t.personId)} · ${fWindow(t)}`, to: `/manager/tasks?task=${t.id}` })),
+    ...awaiting.filter((t) => { const since = t.completedAt ?? t.startedAt; return !!since && now - Date.parse(since) > 45 * 60_000 }).map((t) => ({ id: `w-${t.id}`, rank: 2, tone: 'warning' as Tone, title: `Room ${L.room(t.roomId)?.number} waiting for a check`, sub: `${L.name(t.personId)} · ${fWindow(t)}`, to: `/manager/tasks?task=${t.id}` })),
     ...shifts.map((s) => ({ s, cv: coverageFor(s, today, db.cover) })).filter((x) => x.cv.gap).map(({ s, cv }) => ({ id: `gap-${s.id}`, rank: 2.5, tone: 'warning' as Tone, title: `${s.name} shift below target`, sub: `${cv.available} of ${s.staffTarget} staff today`, to: '/manager/lead/planner' })),
     ...(connection.hotel === 'offline' ? [{ id: 'offline', rank: 0, tone: 'danger' as Tone, title: 'Hotel connection is down', sub: 'Staff changes are queued and will sync on reconnect', to: '/manager/lead/pulse' }] : []),
   ].sort((a, b) => a.rank - b.rank)

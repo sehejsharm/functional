@@ -11,7 +11,7 @@ const uid = (p: string) => `${p}-${Math.random().toString(36).slice(2, 9)}`
 const nowIso = () => iso(Date.now())
 
 /** Queued writes made while the hotel connection is down; flushed on reconnect. */
-type OutboxItem = { id: string; kind: 'step' | 'checkin'; taskId?: string; stepId?: string; at: string }
+type OutboxItem = { id: string; kind: 'step' | 'checkin'; taskId?: string; stepId?: string; personId?: string; mark?: AttendanceMark; at: string }
 
 interface Connection { hotel: 'online' | 'offline'; checkin: 'ok' | 'attention' }
 
@@ -49,7 +49,7 @@ interface Actions {
   bulkAssign: (items: (Pick<Task, 'shiftId' | 'personId' | 'roomId' | 'start' | 'end' | 'priority' | 'assignedById'> & { sopId: string; notes?: string })[]) => { created: Task[]; skipped: { roomId: string; reason: string }[] }
   setTaskMode: (taskId: string, mode: Task['mode']) => void
   decideCover: (id: string, status: CoverItem['status']) => void
-  approveBackup: (o: { shiftId: string; date: string; personId: string; backupId: string }) => void
+  approveBackup: (o: { shiftId: string; date: string; personId: string; backupId: string; actorId?: string; coverId?: string }) => void
   sendNotice: (n: Omit<Notice, 'id' | 'propertyId' | 'sentAt' | 'sample'> & { sentById: string }) => void
   decideJoin: (id: string, status: 'approved' | 'declined') => void
 
@@ -95,7 +95,20 @@ export const useDB = create<DB>()(
           set((s) => ({ connection: { ...s.connection, ...c } }))
           if (c.hotel === 'online') get().flushOutbox()
         },
-        flushOutbox: () => set({ outbox: [] }),
+        flushOutbox: () => {
+          // Step ticks were applied optimistically; queued check-ins are recorded now with the time they were tapped.
+          const queued = get().outbox.filter((o) => o.kind === 'checkin' && o.personId)
+          set((s) => {
+            let attendance = s.attendance
+            for (const o of queued) {
+              const date = hotelDateKey(o.at)
+              attendance = [...attendance.filter((a) => !(a.personId === o.personId && a.date === date)),
+                { id: uid('at'), propertyId: s.properties[0].id, personId: o.personId!, date, mark: o.mark ?? 'checkin', at: o.at }]
+            }
+            return { outbox: [], attendance, ...(queued.length ? { connection: { ...s.connection, checkin: 'ok' as const } } : {}) }
+          })
+          queued.forEach((o) => get().log(o.personId!, 'attendance.checkin', `${hotelDateKey(o.at)} (synced after offline)`))
+        },
         log: (actorId, action, detail) =>
           set((s) => ({ audit: [{ id: uid('au'), propertyId: s.properties[0].id, actorId, action, detail, at: nowIso() }, ...s.audit] })),
 
@@ -122,7 +135,7 @@ export const useDB = create<DB>()(
           if (!required.every((s) => t.doneStepIds.includes(s.id))) return
           // Only SOPs with recorded checks need an independent verifier; the rest finish here.
           if (v.steps.some((s) => s.requireCheck)) {
-            patchTask(id, () => ({ status: 'awaiting_verification', returned: undefined }))
+            patchTask(id, () => ({ status: 'awaiting_verification', completedAt: nowIso(), returned: undefined }))
             get().log(t.personId, 'task.verification_requested', id)
           } else {
             patchTask(id, () => ({ status: 'done', completedAt: nowIso(), returned: undefined }))
@@ -132,7 +145,7 @@ export const useDB = create<DB>()(
         verifyTask: (id, actorId) => {
           const t = get().tasks.find((x) => x.id === id)
           if (!t || t.status !== 'awaiting_verification' || t.personId === actorId) return
-          patchTask(id, () => ({ status: 'done', completedAt: nowIso(), verifiedById: actorId, verifiedAt: nowIso() }))
+          patchTask(id, (x) => ({ status: 'done', completedAt: x.completedAt ?? nowIso(), verifiedById: actorId, verifiedAt: nowIso() }))
           get().log(actorId, 'task.verified', id)
         },
         markUrgentSeen: (id) => patchTask(id, (t) => ({ urgentEnded: t.urgentEnded && { ...t.urgentEnded, seen: true } })),
@@ -163,7 +176,7 @@ export const useDB = create<DB>()(
         returnTask: (id, actorId, note) => {
           const t = get().tasks.find((x) => x.id === id)
           if (!t || t.status !== 'awaiting_verification' || t.personId === actorId || !note.trim()) return false
-          patchTask(id, () => ({ status: 'in_progress', returned: { byId: actorId, at: nowIso(), note: note.trim() } }))
+          patchTask(id, () => ({ status: 'in_progress', completedAt: undefined, returned: { byId: actorId, at: nowIso(), note: note.trim() } }))
           get().log(actorId, 'task.returned', `${id}: ${note.trim()}`)
           return true
         },
@@ -176,14 +189,14 @@ export const useDB = create<DB>()(
         },
         reassignTask: (id, personId, actorId) => {
           const t = get().tasks.find((x) => x.id === id)
-          if (!t || t.status === 'done' || t.status === 'cancelled' || t.personId === personId) return false
+          if (!t || (t.status !== 'scheduled' && t.status !== 'in_progress') || t.personId === personId) return false
           patchTask(id, () => ({ personId, assignedById: actorId }))
           get().log(actorId, 'task.reassigned', `${id} → ${personId}`)
           return true
         },
         checkIn: (personId, mark = 'checkin') => {
           if (offline()) {
-            set((s) => ({ connection: { ...s.connection, checkin: 'attention' }, outbox: [...s.outbox, { id: uid('ob'), kind: 'checkin', at: nowIso() }] }))
+            set((s) => ({ connection: { ...s.connection, checkin: 'attention' }, outbox: [...s.outbox.filter((o) => !(o.kind === 'checkin' && o.personId === personId)), { id: uid('ob'), kind: 'checkin', personId, mark, at: nowIso() }] }))
             return
           }
           const date = hotelDateKey()
@@ -261,19 +274,35 @@ export const useDB = create<DB>()(
         },
         setTaskMode: (id, mode) => patchTask(id, () => ({ mode })),
         decideCover: (id, status) => set((s) => ({ cover: s.cover.map((c) => (c.id === id ? { ...c, status } : c)) })),
-        approveBackup: ({ shiftId, date, personId, backupId }) => {
+        approveBackup: ({ shiftId, date, personId, backupId, actorId = 'elena', coverId }) => {
+          // The roster only changes when the cover is for today (the demo re-seeds each hotel day);
+          // future dates are recorded as approved cover and shown on the planner.
+          const today = date === hotelDateKey()
           set((s) => ({
-            cover: [...s.cover, { id: uid('c'), propertyId: s.properties[0].id, kind: 'backup', personId, backupId, shiftId, date, note: 'Backup approved', status: 'approved' }],
-            shifts: s.shifts.map((sh) => (sh.id === shiftId ? { ...sh, memberIds: [...new Set([...sh.memberIds.filter((m) => m !== personId), backupId])] } : sh)),
+            cover: [...s.cover.map((c) => (c.id === coverId ? { ...c, status: 'approved' as const } : c)),
+              { id: uid('c'), propertyId: s.properties[0].id, kind: 'backup', personId, backupId, shiftId, date, note: 'Backup approved', status: 'approved' }],
+            shifts: today ? s.shifts.map((sh) => (sh.id === shiftId ? { ...sh, memberIds: [...new Set([...sh.memberIds.filter((m) => m !== personId), backupId])] } : sh)) : s.shifts,
           }))
-          get().log('elena', 'cover.backup_approved', `${backupId} covers ${personId} on ${shiftId} ${date}`)
+          get().log(actorId, 'cover.backup_approved', `${backupId} covers ${personId} on ${shiftId} ${date}`)
         },
         sendNotice: (n) => {
           const notice: Notice = { ...n, id: uid('n'), propertyId: get().properties[0].id, sentAt: nowIso(), sample: false }
           set((s) => ({ notices: [notice, ...s.notices] }))
           get().log(n.sentById, 'notice.sent', `${n.title} → ${n.recipientIds.length}`)
         },
-        decideJoin: (id, status) => set((s) => ({ joinRequests: s.joinRequests.map((j) => (j.id === id ? { ...j, status } : j)) })),
+        decideJoin: (id, status) => {
+          const j = get().joinRequests.find((x) => x.id === id)
+          if (!j || j.status !== 'pending') return
+          set((s) => {
+            const joinRequests = s.joinRequests.map((x) => (x.id === id ? { ...x, status } : x))
+            if (status !== 'approved') return { joinRequests }
+            const role = s.jobRoles.find((r) => r.id === j.jobRoleId)
+            const pid = uid('p')
+            const person = { id: pid, propertyId: j.propertyId, name: j.name, initials: j.name.split(' ').map((w) => w[0]).join('').slice(0, 2), jobRoleId: j.jobRoleId,
+              title: role?.name ?? 'Team member', catalogue: ['whole' as const], status: 'active' as const, hiredAt: nowIso(), languages: ['English'] }
+            return { joinRequests, people: [...s.people, person], shifts: s.shifts.map((sh) => (sh.id === j.shiftId ? { ...sh, memberIds: [...sh.memberIds, pid] } : sh)) }
+          })
+        },
 
         saveDraft: (v) => {
           const next = { ...v, updatedAt: nowIso() }
@@ -310,11 +339,13 @@ export const useDB = create<DB>()(
           get().log(v.authorId, 'sop.submitted', `${v.code} ${v.version}`)
         },
         review: (id, d) => {
+          const target = get().sopVersions.find((v) => v.id === id)
+          if (!target || target.status !== 'in_review' || d.reviewerId === target.authorId) return
           set((s) => ({
             sopVersions: s.sopVersions.map((v) => {
               if (v.id !== id || d.reviewerId === v.authorId) return v // authors never review their own version
               const reviews = [...v.reviews.filter((r) => !(r.reviewerId === d.reviewerId && !r.stepId && !d.stepId)), { ...d, id: uid('rv'), at: nowIso() }]
-              const status = d.stepId ? v.status : d.decision === 'reject' ? 'rejected' : d.decision === 'request_changes' ? 'changes_requested' : v.status === 'changes_requested' ? 'in_review' : v.status
+              const status = d.stepId ? v.status : d.decision === 'reject' ? 'rejected' : d.decision === 'request_changes' ? 'changes_requested' : v.status
               return { ...v, reviews, status }
             }),
           }))
@@ -353,7 +384,7 @@ export const useDB = create<DB>()(
       }
     },
     {
-      name: 'mise-db-v3',
+      name: 'mise-db-v4',
       partialize: (s) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { connection: _c, ...rest } = s
@@ -368,7 +399,7 @@ if (useDB.getState().seededFor !== hotelDateKey()) useDB.getState().reset()
 
 // Cross-tab "real-time": another tab's write lands here without a reload.
 if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => { if (e.key === 'mise-db-v3') useDB.persist.rehydrate() })
+  window.addEventListener('storage', (e) => { if (e.key === 'mise-db-v4') useDB.persist.rehydrate() })
   window.addEventListener('online', () => useDB.getState().setConnection({ hotel: 'online' }))
   window.addEventListener('offline', () => useDB.getState().setConnection({ hotel: 'offline' }))
 }

@@ -34,7 +34,7 @@ function useCounts(portal: Portal): Record<CountKey, number> {
     return {
       cover: s.cover.filter((c) => c.status === 'pending').length,
       reviews: s.sopVersions.filter((v) => v.status === 'in_review' || v.status === 'changes_requested').length,
-      feedback: s.feedback.filter((f) => f.status === 'open').length,
+      feedback: s.feedback.filter((f) => f.status === 'open' && f.lane !== 'rating').length,
       join: s.joinRequests.filter((j) => j.status === 'pending').length,
       incidents: s.issues.filter((i) => i.status !== 'resolved').length,
       verify: s.tasks.filter((t) => t.status === 'awaiting_verification').length,
@@ -59,9 +59,9 @@ export function PortalSwitcher({ current }: { current: Portal }) {
     setTimeout(() => setSwitching(null), 1000)
   }
   return (
-    <div role="tablist" aria-label="Switch portal" className="grid grid-cols-3 gap-0.5 rounded-cell bg-white/[0.06] p-0.5">
+    <div role="group" aria-label="Switch portal" className="grid grid-cols-3 gap-0.5 rounded-cell bg-white/[0.06] p-0.5">
       {(['employee', 'manager', 'author'] as Portal[]).filter((p) => grants.some((g) => g.portal === p)).map((p) => (
-        <button key={p} role="tab" aria-selected={p === current} onClick={() => go(p)}
+        <button key={p} type="button" aria-pressed={p === current} onClick={() => go(p)}
           className={clsx('relative rounded-[7px] px-2 py-1.5 text-xs font-semibold transition-colors', p === current ? 'text-forest-950' : 'text-sage-300 hover:text-white')}>
           {p === current && <span aria-hidden className="absolute inset-0 rounded-[7px] bg-gold-500" />}
           <span className="relative">{PORTAL_LABEL[p]}</span>
@@ -145,8 +145,8 @@ function DemoControls({ portal }: { portal: Portal }) {
   return (
     <div className="rounded-cell border border-white/10 bg-white/[0.03]">
       <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center gap-2 px-2.5 py-2 text-xs font-medium text-sage-300 hover:text-white">
-        <SlidersHorizontal size={13} /> <span className="flex-1 text-left">Demo controls</span>
-        <span className="truncate text-2xs text-sage-300/70">{portal === 'employee' ? byId(people, demoEmployeeId ?? grant?.personId)?.name.split(' ')[0] : tierLabel[demoTier ?? 'base']}</span>
+        <SlidersHorizontal size={13} className="shrink-0" /> <span className="flex-1 whitespace-nowrap text-left">Demo</span>
+        <span className="min-w-0 max-w-[110px] truncate text-2xs text-sage-300/80">{portal === 'employee' ? byId(people, demoEmployeeId ?? grant?.personId)?.name.split(' ')[0] : tierLabel[demoTier ?? 'base']}</span>
         <ChevronDown size={13} className={clsx('transition', open && 'rotate-180')} />
       </button>
       <AnimatePresence initial={false}>
@@ -183,7 +183,7 @@ function NavRow({ item, locked, count, onNavigate }: { item: NavItem; locked: bo
   return (
     <li>
       <NavLink to={item.to} end={item.to.split('/').length <= 2} onClick={onNavigate}
-        className={({ isActive }) => clsx('group relative flex items-center gap-3 rounded-cell px-2.5 py-[7px] text-[13px] font-medium transition-colors',
+        className={({ isActive }) => clsx('group relative flex items-center gap-3 rounded-cell px-2.5 py-1.5 text-[13px] font-medium transition-colors',
           isActive ? 'bg-white/[0.09] text-white' : 'text-sage-300 hover:bg-white/[0.05] hover:text-white')}>
         {({ isActive }) => (<>
           {isActive && <span aria-hidden className="absolute inset-y-1.5 -left-3 w-[3px] rounded-r-pill bg-gold-500" />}
@@ -197,18 +197,37 @@ function NavRow({ item, locked, count, onNavigate }: { item: NavItem; locked: bo
   )
 }
 
+const COLLAPSE_KEY = 'mise-nav-collapsed'
+function readCollapsed(): string[] { try { return JSON.parse(localStorage.getItem(COLLAPSE_KEY) ?? '[]') } catch { return [] } }
+
 function NavList({ portal, onNavigate }: { portal: Portal; onNavigate?: () => void }) {
   const counts = useCounts(portal)
   const { grant } = usePersona(portal)
+  const loc = useLocation()
+  const [collapsed, setCollapsed] = useState<string[]>(readCollapsed)
   const groups = NAV[portal].reduce<Record<string, NavItem[]>>((acc, i) => { (acc[i.group ?? ''] ??= []).push(i); return acc }, {})
+  const toggle = (key: string) => setCollapsed((c) => { const n = c.includes(key) ? c.filter((x) => x !== key) : [...c, key]; try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(n)) } catch { /* private mode */ } return n })
   return (
-    <nav aria-label={`${PORTAL_LABEL[portal]} navigation`} className="space-y-5">
-      {Object.entries(groups).map(([g, items]) => (
-        <div key={g}>
-          {g && <div className="mb-1.5 px-2.5 text-2xs font-semibold uppercase tracking-[0.12em] text-sage-300/60">{g}</div>}
-          <ul className="space-y-0.5">{items.map((i) => <NavRow key={i.to} item={i} locked={!!i.need && !canAccess(grant?.tier, i.need)} count={i.count ? counts[i.count] : 0} onNavigate={onNavigate} />)}</ul>
-        </div>
-      ))}
+    <nav aria-label={`${PORTAL_LABEL[portal]} navigation`} className="space-y-4">
+      {Object.entries(groups).map(([g, items]) => {
+        const key = `${portal}:${g}`
+        // A group holding the current screen always stays open.
+        const open = !g || !collapsed.includes(key) || items.some((i) => loc.pathname.startsWith(i.to))
+        const waiting = items.reduce((n, i) => n + (i.count ? counts[i.count] : 0), 0)
+        return (
+          <div key={g}>
+            {g && (
+              <button type="button" onClick={() => toggle(key)} aria-expanded={open}
+                className="mb-1 flex w-full items-center gap-1.5 rounded-md px-2.5 py-1 text-2xs font-semibold uppercase tracking-[0.12em] text-sage-300/85 hover:text-white">
+                <span className="flex-1 text-left">{g}</span>
+                {!open && waiting > 0 && <Count n={waiting} tone="neutral" />}
+                <ChevronDown size={12} className={clsx('transition', !open && '-rotate-90')} />
+              </button>
+            )}
+            {open && <ul className="space-y-0.5">{items.map((i) => <NavRow key={i.to} item={i} locked={!!i.need && !canAccess(grant?.tier, i.need)} count={i.count ? counts[i.count] : 0} onNavigate={onNavigate} />)}</ul>}
+          </div>
+        )
+      })}
     </nav>
   )
 }
@@ -220,16 +239,19 @@ function Sidebar({ portal, onNavigate }: { portal: Portal; onNavigate?: () => vo
   const nav = useNavigate()
   return (
     <div className="sidebar-surface flex h-full flex-col text-sage-50">
-      <div className="flex items-center gap-3 px-4 pb-4 pt-5">
+      <div className="flex items-center gap-3 px-4 pb-3 pt-4">
         <Logo size={32} wordmark={false} />
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold text-white">{property?.name}</div>
           <div className="truncate text-2xs text-sage-300">{PORTAL_CONTEXT[portal]} · {property?.city}</div>
         </div>
       </div>
-      <div className="px-3 pb-4"><PortalSwitcher current={portal} /></div>
-      <div className="flex-1 overflow-y-auto px-3 pb-4"><NavList portal={portal} onNavigate={onNavigate} /></div>
-      <div className="space-y-2 border-t border-white/[0.07] px-3 py-3">
+      <div className="px-3 pb-3"><PortalSwitcher current={portal} /></div>
+      <div className="relative min-h-0 flex-1">
+        <div className="h-full overflow-y-auto px-3 pb-6"><NavList portal={portal} onNavigate={onNavigate} /></div>
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-forest-950 to-transparent" />
+      </div>
+      <div className="space-y-1.5 border-t border-white/[0.07] px-3 py-2.5">
         <DemoControls portal={portal} />
         <ConnectionChip />
         {person && (
@@ -290,10 +312,11 @@ function NotificationsButton({ portal }: { portal: Portal }) {
     if (!open) return
     const r = btn.current?.getBoundingClientRect()
     if (r) setPos({ top: r.bottom + 8, right: Math.max(8, window.innerWidth - r.right) })
+    const t = setTimeout(() => panel.current?.querySelector<HTMLElement>('button')?.focus(), 30)
     const close = (e: MouseEvent) => { if (!panel.current?.contains(e.target as Node) && !btn.current?.contains(e.target as Node)) setOpen(false) }
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); btn.current?.querySelector('button')?.focus() } }
     document.addEventListener('mousedown', close); window.addEventListener('keydown', key)
-    return () => { document.removeEventListener('mousedown', close); window.removeEventListener('keydown', key) }
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', close); window.removeEventListener('keydown', key) }
   }, [open])
   const toneDot: Record<AppNotification['tone'], string> = { info: 'bg-info', warning: 'bg-amber', danger: 'bg-danger', success: 'bg-ok', neutral: 'bg-muted' }
   return (
@@ -387,7 +410,19 @@ export function PortalShell({ portal, children }: { portal: Portal; children: Re
   const loc = useLocation()
   const [menu, setMenu] = useState(false)
   const isEmployee = portal === 'employee'
-  useEffect(() => { window.scrollTo(0, 0) }, [loc.pathname])
+  const crumb = useCrumbStore((s) => s.label)
+  const first = useRef(true)
+  useEffect(() => {
+    window.scrollTo(0, 0)
+    // Move focus to the new screen so keyboard and screen-reader users start at its content.
+    if (first.current) { first.current = false; return }
+    document.getElementById('main')?.focus({ preventScroll: true })
+  }, [loc.pathname])
+  useEffect(() => {
+    const item = navFor(portal, loc.pathname)
+    const isDetail = !!item && loc.pathname !== item.to
+    document.title = [isDetail ? crumb : null, item?.label, `${PORTAL_LABEL[portal]} · Mise`].filter(Boolean).join(' · ')
+  }, [portal, loc.pathname, crumb])
   return (
     <div data-portal={portal} className="flex min-h-full bg-canvas">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[100] focus:rounded-cell focus:bg-surface focus:px-3 focus:py-2 focus:shadow-pop">Skip to content</a>
@@ -395,8 +430,8 @@ export function PortalShell({ portal, children }: { portal: Portal; children: Re
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar portal={portal} onMenu={() => setMenu(true)} />
         {/* Enter-only fade: no exit wait, so a new screen can never be held back by the old one. */}
-        <motion.main id="main" key={loc.pathname} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16 }}
-          className={clsx('mx-auto w-full flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8', isEmployee ? 'max-w-3xl pb-28 lg:pb-10' : 'max-w-[1400px]')}>
+        <motion.main id="main" tabIndex={-1} key={loc.pathname} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.16 }}
+          className={clsx('mx-auto w-full flex-1 px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8', isEmployee ? 'max-w-3xl pb-28 lg:pb-10' : 'max-w-[1400px]')}>
           <RouteBoundary resetKey={loc.pathname}>{children}</RouteBoundary>
         </motion.main>
         {isEmployee && <BottomTabs portal={portal} />}

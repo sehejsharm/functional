@@ -148,6 +148,8 @@ function Rate({ v, person }: { v: SopVersion; person: Person }) {
   const [comment, setComment] = useState('')
   const [editing, setEditing] = useState(false)
   const send = () => {
+    // One rating per person per version: a new rating replaces the old one.
+    useDB.setState((s) => ({ feedback: s.feedback.filter((f) => !(f.lane === 'rating' && f.sopVersionId === v.id && f.fromId === person.id)) }))
     useDB.getState().addFeedback('rating', v.id, person.id, comment.trim(), { rating: value })
     toast.success('Rating sent', { description: `${value} out of 5 for ${v.code} v${v.version}. Thank you.` })
     setValue(0); setComment(''); setEditing(false)

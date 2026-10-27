@@ -34,10 +34,10 @@ export function SearchBox({ value, onChange, placeholder = 'Search', className, 
   )
 }
 
-export function Switch({ checked, onChange, label, description, disabled }: { checked: boolean; onChange: (v: boolean) => void; label?: ReactNode; description?: ReactNode; disabled?: boolean }) {
+export function Switch({ checked, onChange, label, description, disabled, ariaLabel }: { checked: boolean; onChange: (v: boolean) => void; label?: ReactNode; description?: ReactNode; disabled?: boolean; /** names the switch for screen readers when the visible label is a state or is shared */ ariaLabel?: string }) {
   return (
     <label className={clsx('flex items-start gap-3', disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer')}>
-      <button type="button" role="switch" aria-checked={checked} disabled={disabled} onClick={() => onChange(!checked)}
+      <button type="button" role="switch" aria-checked={checked} aria-label={ariaLabel} disabled={disabled} onClick={() => onChange(!checked)}
         className={clsx('relative mt-0.5 h-5 w-9 shrink-0 rounded-pill transition-colors', checked ? 'bg-forest-700' : 'bg-ink/20')}>
         <span aria-hidden className={clsx('absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200', checked && 'translate-x-4')} />
       </button>

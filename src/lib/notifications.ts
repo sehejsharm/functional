@@ -2,7 +2,8 @@
 // from what the screens show. Only "seen" state is kept, per browser, in the session store.
 import { useMemo } from 'react'
 import { useDB } from './db'
-import { hotelDateKey } from './time'
+import { useNow } from './hooks'
+import { fDate, fTime, hotelDateKey } from './time'
 import type { Portal } from './types'
 
 export type NotificationKind = 'verify' | 'overdue' | 'incident' | 'cover' | 'join' | 'notice' | 'returned' | 'urgent' | 'review' | 'changes' | 'feedback' | 'assigned'
@@ -10,23 +11,24 @@ export interface AppNotification { id: string; kind: NotificationKind; title: st
 
 export function useNotifications(portal: Portal, personId: string | undefined): AppNotification[] {
   const s = useDB()
+  const clock = useNow(60_000)
   return useMemo(() => {
     if (!personId) return []
     const name = (id?: string) => s.people.find((p) => p.id === id)?.name ?? 'Someone'
     const room = (id?: string) => s.rooms.find((r) => r.id === id)?.number ?? '—'
     const today = hotelDateKey()
-    const now = Date.now()
+    const now = clock
     const out: AppNotification[] = []
     if (portal === 'manager') {
       s.tasks.filter((t) => t.status === 'awaiting_verification').forEach((t) =>
         out.push({ id: `verify-${t.id}`, kind: 'verify', title: `Room ${room(t.roomId)} is ready for verification`, body: `${name(t.personId)} finished the steps`, at: t.startedAt ?? t.start, to: `/manager/tasks?task=${t.id}`, tone: 'warning' }))
       s.tasks.filter((t) => (t.status === 'scheduled' || t.status === 'in_progress') && Date.parse(t.end) < now && hotelDateKey(t.start) === today).forEach((t) =>
-        out.push({ id: `overdue-${t.id}`, kind: 'overdue', title: `Room ${room(t.roomId)} is overdue`, body: `${name(t.personId)} · due ${new Date(t.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, at: t.end, to: `/manager/tasks?task=${t.id}`, tone: 'danger' }))
+        out.push({ id: `overdue-${t.id}`, kind: 'overdue', title: `Room ${room(t.roomId)} is overdue`, body: `${name(t.personId)} · due ${fTime(t.end)}`, at: t.end, to: `/manager/tasks?task=${t.id}`, tone: 'danger' }))
       s.issues.filter((i) => i.status !== 'resolved').forEach((i) =>
         out.push({ id: `incident-${i.id}-${i.updates.length}`, kind: 'incident', title: i.title, body: `${i.severity[0].toUpperCase()}${i.severity.slice(1)} · reported by ${name(i.reportedById)}`, at: i.updates[i.updates.length - 1].at, to: `/manager/incidents?id=${i.id}`, tone: i.severity === 'critical' || i.severity === 'high' ? 'danger' : 'warning' }))
       s.cover.filter((c) => c.status === 'pending').forEach((c) => {
         const forDay = `${c.date}T06:00:00.000Z`
-        out.push({ id: `cover-${c.id}`, kind: 'cover', title: `${name(c.personId)} · ${c.kind.replace('_', ' ')}`, body: `${c.note} · for ${new Date(forDay).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`,
+        out.push({ id: `cover-${c.id}`, kind: 'cover', title: `${name(c.personId)} · ${c.kind.replace('_', ' ')}`, body: `${c.note} · for ${fDate(forDay)}`,
           at: forDay > new Date(now).toISOString() ? new Date(now - 60 * 60_000).toISOString() : forDay, to: '/manager/shift-cover', tone: 'info' })
       })
       s.joinRequests.filter((j) => j.status === 'pending').forEach((j) =>
@@ -51,5 +53,5 @@ export function useNotifications(portal: Portal, personId: string | undefined): 
         out.push({ id: `feedback-${f.id}`, kind: 'feedback', title: f.lane === 'manager_request' ? `Change request from ${name(f.fromId)}` : `Suggestion from ${name(f.fromId)}`, body: f.text, at: f.at, to: '/author/feedback', tone: 'neutral' }))
     }
     return out.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 40)
-  }, [s, portal, personId])
+  }, [s, portal, personId, clock])
 }

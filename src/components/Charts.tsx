@@ -47,7 +47,7 @@ export function LineChart({ points, series, max, min = 0, label, suffix = '%', h
             </g>
           )
         })}
-        {xs0.map((p, i) => (i % every === 0 || i === xs0.length - 1) && <text key={i} x={x(i)} y={H - 8} fontSize="10" textAnchor="middle" fill={AXIS}>{p.x.length > 7 ? p.x.slice(5) : p.x}</text>)}
+        {xs0.map((p, i) => (i % every === 0 || i === xs0.length - 1) && <text key={i} x={x(i)} y={H - 8} fontSize="10" textAnchor={i === 0 ? 'start' : i === xs0.length - 1 ? 'end' : 'middle'} fill={AXIS}>{p.x.length > 7 ? p.x.slice(5) : p.x}</text>)}
         {hover != null && <line x1={x(hover)} x2={x(hover)} y1={padT} y2={H - padB} stroke="rgb(var(--ink) / 0.25)" />}
       </svg>
       {hover != null && xs0[hover] && (

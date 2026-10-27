@@ -1,8 +1,8 @@
 import clsx from 'clsx'
 import { ArrowRightLeft, ClipboardList, Crown, ShieldCheck, XCircle } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Button, DataTable, EmptyState, PageHeader, Segmented, Tabs, type Column } from '@/components/ui'
+import { useNavigate } from 'react-router-dom'
+import { Button, DataTable, EmptyState, PageHeader, Segmented, Tabs, type Column, ButtonLink } from '@/components/ui'
 import { byId, useDB } from '@/lib/db'
 import { useNow } from '@/lib/hooks'
 import { fLongDate, hotelDateKey } from '@/lib/time'
@@ -106,7 +106,7 @@ export function ManagerTasks() {
         meta={<><span>{fLongDate(now)}</span><span>{live ? `${live.name} shift live` : 'Between shifts'}</span><span className="tabular">{scoped.length} tasks · {done} done · {count('awaiting_verification')} awaiting check · {count('overdue')} overdue</span></>}
         actions={<>
           <Segmented size="sm" value={scope || '1'} onChange={(v) => setScope(v === '1' ? null : v)} items={[{ id: '1', label: 'Today' }, { id: '7', label: '7 days' }, { id: '14', label: '14 days' }]} />
-          <Link to="/manager/assign-rooms"><Button variant="primary" icon={ClipboardList}>Assign work</Button></Link>
+          <ButtonLink to="/manager/assign-rooms" variant="primary" icon={ClipboardList}>Assign work</ButtonLink>
         </>}>
         <Tabs value={tab} onChange={(v) => setStatus(v === 'all' ? null : v)} items={[
           { id: 'all', label: 'All', count: count('all') },
@@ -122,7 +122,7 @@ export function ManagerTasks() {
       <DataTable rows={rows} columns={columns} rowKey={(t) => t.id} pageSize={15} caption="Tasks"
         onRowClick={(t) => setTaskId(t.id)} rowClassName={(t) => (t.id === taskId ? 'bg-forest-50/70' : undefined)}
         search={(t) => { const r = L.room(t.roomId); const v = L.version(t.sopVersionId); return `${r?.number} ${r?.guestName ?? ''} ${r?.type ?? ''} ${L.name(t.personId)} ${v?.code} ${v?.title}` }}
-        searchPlaceholder="Search room, guest, staff or SOP" exportName={`tasks-${hotelDateKey(now)}`}
+        searchPlaceholder="Room, guest, staff, SOP" exportName={`tasks-${hotelDateKey(now)}`}
         filters={<>
           {room && <FilterChip label={`Room ${room.number}`} onClear={() => setRoomId(null)} />}
           <FilterSelect label="Shift" value={shift} onChange={setShift}><option value="">All shifts</option>{shifts.map((s) => <option key={s.id} value={s.id}>{s.name}{s.id === live?.id ? ' (live)' : ''}</option>)}</FilterSelect>
@@ -141,10 +141,10 @@ export function ManagerTasks() {
         empty={room ? (
           <EmptyState compact icon={ClipboardList} title={`No work on room ${room.number} ${days === 1 ? 'today' : `in the last ${days} days`}`}
             description={`${room.type} · ${room.guestName ?? 'no guest'}. Assign it now or widen the date range.`}
-            action={<div className="flex gap-2"><Link to={`/manager/assign-rooms?room=${room.id}`}><Button size="sm" variant="primary">Assign work</Button></Link>{days < 14 && <Button size="sm" variant="secondary" onClick={() => setScope('14')}>Show 14 days</Button>}</div>} />
+            action={<div className="flex gap-2"><ButtonLink to={`/manager/assign-rooms?room=${room.id}`} size="sm" variant="primary">Assign work</ButtonLink>{days < 14 && <Button size="sm" variant="secondary" onClick={() => setScope('14')}>Show 14 days</Button>}</div>} />
         ) : (
           <EmptyState compact title="No tasks match" description={anyFilter || tab !== 'all' ? 'Try another status tab or clear the filters.' : 'Nothing is assigned yet today.'}
-            action={anyFilter ? <Button size="sm" variant="secondary" onClick={() => { setShift(''); setStaff(''); setSop(''); setPriority(''); setRoomId(null) }}>Clear filters</Button> : <Link to="/manager/assign-rooms"><Button size="sm" variant="primary">Assign work</Button></Link>} />
+            action={anyFilter ? <Button size="sm" variant="secondary" onClick={() => { setShift(''); setStaff(''); setSop(''); setPriority(''); setRoomId(null) }}>Clear filters</Button> : <ButtonLink to="/manager/assign-rooms" size="sm" variant="primary">Assign work</ButtonLink>} />
         )} />
 
       <TaskDrawer taskId={taskId || null} onClose={() => setTaskId(null)} />

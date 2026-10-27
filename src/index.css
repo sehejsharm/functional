@@ -6,7 +6,8 @@
 @layer base {
   html, body, #root { height: 100%; }
   body { @apply bg-canvas text-ink font-sans antialiased; font-feature-settings: 'cv11', 'ss01'; }
-  :focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(var(--forest-600) / 0.35); border-radius: 6px; }
+  :focus-visible { outline: 2px solid rgb(var(--forest-600)); outline-offset: 2px; }
+  .sidebar-surface :focus-visible, .card-dark :focus-visible { outline-color: rgb(var(--gold-400)); }
   h1, h2, h3, h4 { @apply font-sans tracking-tight text-ink; }
   ::selection { background: rgb(var(--gold-300)); color: rgb(var(--ink)); }
   * { scrollbar-width: thin; scrollbar-color: rgb(var(--line-strong)) transparent; }
@@ -21,9 +22,9 @@
 
   /* Forms */
   .input {
-    @apply w-full rounded-cell border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted/80
+    @apply w-full rounded-cell border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted
       shadow-[inset_0_1px_1px_rgb(16_32_24/0.03)] outline-none transition
-      hover:border-ink-2/40 focus:border-forest-600 focus:shadow-ring disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-muted;
+      hover:border-ink-2/40 focus:border-forest-600 focus:shadow-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-surface-2 disabled:text-muted;
   }
   select.input { @apply pr-8; }
   .label { @apply mb-1.5 block text-xs font-medium text-ink-2; }
@@ -35,6 +36,12 @@
   .td { @apply px-4 py-3 align-middle text-sm text-ink; }
 
   .link { @apply font-medium text-forest-700 underline-offset-2 hover:underline; }
+  /* Horizontal scroll shadows: show there is more table to the right/left. */
+  .scroll-shadow-x {
+    background: linear-gradient(to right, rgb(var(--surface)) 30%, transparent), linear-gradient(to left, rgb(var(--surface)) 30%, transparent) 100% 0,
+      radial-gradient(farthest-side at 0 50%, rgb(16 32 24 / 0.14), transparent), radial-gradient(farthest-side at 100% 50%, rgb(16 32 24 / 0.14), transparent) 100% 0;
+    background-repeat: no-repeat; background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%; background-attachment: local, local, scroll, scroll;
+  }
   .kbd { @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-line-strong bg-surface px-1 font-sans text-[10px] font-semibold text-muted; }
 }
 @layer utilities {

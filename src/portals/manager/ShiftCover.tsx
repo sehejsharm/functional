@@ -52,7 +52,7 @@ export function ShiftCover() {
       ? { title: `Approve ${COVER_KIND[c.kind].label.toLowerCase()}?`, body: `${person(c.personId)?.name} · ${body}`, confirmLabel: 'Approve' }
       : { title: `Decline ${COVER_KIND[c.kind].label.toLowerCase()}?`, body: `${person(c.personId)?.name} is told it was declined. ${c.note}.`, confirmLabel: 'Decline', tone: 'danger' })
     if (!ok) return false
-    decideCoverAs(c, status, me?.id ?? 'elena', label(c))
+    if (!decideCoverAs(c, status, me?.id ?? 'elena', label(c))) { toast.info('Already decided', { description: 'Someone handled this request a moment ago.' }); return false }
     if (status === 'approved') {
       const below = c.kind === 'time_off' && sh && coverageFor(sh, c.date, useDB.getState().cover).gap
       toast.success(`${COVER_KIND[c.kind].label} approved`, { description: below ? `${shiftName(c.shiftId)} on ${fDate(dayOf(c.date))} is now below target.` : `${person(c.personId)?.name} · ${fDate(dayOf(c.date))}`,
@@ -143,6 +143,7 @@ export function ShiftCover() {
 }
 
 function BackupModal({ open, initial, onClose }: { open: boolean; initial: { shiftId?: string; date?: string; personId?: string }; onClose: () => void }) {
+  const { person: me } = usePersona('manager')
   const now = useNow(60_000)
   const { shifts, people, cover, jobRoles } = useDB()
   const live = liveShiftAt(now, shifts)
@@ -165,8 +166,8 @@ function BackupModal({ open, initial, onClose }: { open: boolean; initial: { shi
   const approve = () => {
     const p = byId(people, backupId)
     if (!p || !need || !eligible(p)) { toast.error('That backup is no longer eligible', { description: 'Their roster changed. Choose someone else.' }); setBackupId(''); return } // re-checked at approval time
-    useDB.getState().approveBackup({ shiftId: shift.id, date, personId: need.id, backupId: p.id })
-    toast.success(`${p.name} covers ${need.name}`, { description: `${shift.name} shift · ${fLongDate(dayOf(date))}. ${p.name.split(' ')[0]} is now on the roster.` })
+    useDB.getState().approveBackup({ shiftId: shift.id, date, personId: need.id, backupId: p.id, actorId: me?.id ?? 'elena' })
+    toast.success(`${p.name} covers ${need.name}`, { description: `${shift.name} shift · ${fLongDate(dayOf(date))}. ${date === hotelDateKey(now) ? `${p.name.split(' ')[0]} is now on today’s roster.` : 'Recorded for that day only.'}` })
     onClose()
   }
   const role = (p?: Person) => jobRoles.find((r) => r.id === p?.jobRoleId)?.name

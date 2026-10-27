@@ -439,16 +439,16 @@ function UrgentEnded({ personId }: { personId: string }) {
   return (
     <ShiftEventInterstitial
       open={!!task}
-      title="Priority changed"
-      lead="This urgent request has ended. Nothing changed. Carry on with your work; your manager can see it ended."
+      title={task ? `Room ${byId(rooms, task.roomId)?.number} is no longer urgent` : 'Priority changed'}
+      lead="Your manager lowered the priority. It stays on your list at its normal time — finish what you're doing first."
       details={task && (<>
         <div className="font-display text-3xl font-bold text-ink">Room {byId(rooms, task.roomId)?.number}</div>
-        <div className="mt-1 text-sm text-muted">Reason: {task.urgentEnded!.reason}</div>
+        <div className="mt-1 text-sm text-muted">Why: {task.urgentEnded!.reason}</div>
         <div className="mt-2 text-sm text-ink-2">{byId(versions, task.sopVersionId)?.title} · {minutesBetween(task.start, task.end)} min</div>
       </>)}
-      actionLabel="Carry on"
+      actionLabel="Got it"
       onAction={() => task && useDB.getState().markUrgentSeen(task.id)}
-      footer={inProgress ? `Room ${byId(rooms, inProgress.roomId)?.number} in progress · Going now pauses nothing` : 'No room in progress · Going now pauses nothing'}
+      footer={inProgress ? `Room ${byId(rooms, inProgress.roomId)?.number} is still in progress — nothing was paused.` : undefined}
     />
   )
 }

@@ -3,8 +3,7 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Bars, HBars, LineChart } from '@/components/Charts'
 import {
-  Avatar, Badge, Button, Card, CardHeader, DataTable, EmptyState, PageHeader, Section, Segmented, Select, StatCard, type Column,
-} from '@/components/ui'
+  Avatar, Badge, Button, Card, CardHeader, DataTable, EmptyState, PageHeader, Section, Segmented, Select, StatCard, type Column, ButtonLink } from '@/components/ui'
 import { stats, type Stats } from '@/lib/analytics'
 import { byId, useDB } from '@/lib/db'
 import { useBreadcrumb } from '@/lib/crumbs'
@@ -213,7 +212,7 @@ export function StaffDetail() {
   const L = useLookups()
   const p = byId(people, id)
   useBreadcrumb(p?.name)
-  if (!p) return <div><PageHeader title="Person not found" back={{ to: '/manager/staff', label: 'Staff directory' }} /><EmptyState icon={UserX} title="No one with that ID" description="They may have left the property or the link is wrong." action={<Link to="/manager/staff"><Button variant="secondary">Back to the directory</Button></Link>} /></div>
+  if (!p) return <div><PageHeader title="Person not found" back={{ to: '/manager/staff', label: 'Staff directory' }} /><EmptyState icon={UserX} title="No one with that ID" description="They may have left the property or the link is wrong." action={<ButtonLink to="/manager/staff" variant="secondary">Back to the directory</ButtonLink>} /></div>
   const role = byId(jobRoles, p.jobRoleId)
   const myShifts = shifts.filter((x) => x.memberIds.includes(p.id))
   const today = hotelDateKey(now)
@@ -257,8 +256,8 @@ export function StaffDetail() {
           {p.hiredAt && <span>Joined {fDate(p.hiredAt)} {new Date(p.hiredAt).getUTCFullYear()} · {tenure >= 1 ? `${tenure.toFixed(1)} yrs` : `${Math.round(tenure * 12)} months`}</span>}
         </>}
         actions={<>
-          <Link to={`/manager/notices?new=1&to=${p.id}`}><Button variant="secondary" icon={Megaphone}>Send notice</Button></Link>
-          <Link to={`/manager/assign-rooms?staff=${p.id}`}><Button variant="primary" icon={ClipboardList}>Assign work</Button></Link>
+          <ButtonLink to={`/manager/notices?new=1&to=${p.id}`} variant="secondary" icon={Megaphone}>Send notice</ButtonLink>
+          <ButtonLink to={`/manager/assign-rooms?staff=${p.id}`} variant="primary" icon={ClipboardList}>Assign work</ButtonLink>
         </>} />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">

@@ -33,11 +33,11 @@
   /* Text */
   --ink: 16 32 24;            /* primary text  #102018 */
   --ink-2: 52 70 60;          /* secondary text #34463C */
-  --muted: 96 112 102;        /* tertiary text #607066 (4.9:1 on white) */
+  --muted: 86 101 92;         /* tertiary text #56655C (5.9:1 on white, 4.9:1 on chips) */
 
   /* Status (AA on white as text; use /10–/15 alpha for fills) */
-  --ok: 22 122 72;            /* #167A48 */
-  --amber: 168 98 8;          /* #A86208 */
+  --ok: 18 106 62;            /* #126A3E */
+  --amber: 146 84 6;          /* #925406 */
   --danger: 190 48 38;        /* #BE3026 */
   --info: 36 94 160;          /* #245EA0 */
 

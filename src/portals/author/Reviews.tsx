@@ -108,7 +108,9 @@ export function VersionReview() {
   const live = current && current.id !== v.id ? current : undefined
   const base = v.status === 'published' || v.status === 'superseded' ? byId(db.sopVersions, v.baseVersionId) : live
   const n = approvalCount(v), need = Math.max(0, APPROVALS_REQUIRED - n)
-  const open = v.status === 'in_review' || v.status === 'changes_requested'
+  // Decisions only count while the version is in review; after changes are requested it waits for the author to resubmit.
+  const open = v.status === 'in_review'
+  const waitingOnAuthor = v.status === 'changes_requested'
   const isAuthor = reviewer === v.authorId
   const next = proposeVersion(v, live)
   const pinned = pinnedTasks(db, live?.id)
@@ -256,6 +258,15 @@ export function VersionReview() {
             </div>
           </Card>
 
+          {waitingOnAuthor && (
+            <Card>
+              <CardHeader icon={ShieldCheck} title="Waiting for the author" description="Changes were requested, so reviews are paused." />
+              <div className="space-y-3 p-5 text-sm text-ink-2">
+                <p>{name(v.authorId)} needs to edit this version and send it for review again. Approvals start fresh when it is resubmitted.</p>
+                <Link to={`/author/edit/${v.id}`} className="link">Open the draft to address the changes</Link>
+              </div>
+            </Card>
+          )}
           {open && (
             <Card>
               <CardHeader icon={ShieldCheck} title="Your decision" description="Demo: choose who is reviewing. In production each reviewer signs in as themselves." />

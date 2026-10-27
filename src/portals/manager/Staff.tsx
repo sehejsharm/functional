@@ -1,7 +1,7 @@
 import { Lock, UserPlus } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Avatar, Badge, Button, DataTable, PageHeader, StatCard, type Column, type Tone } from '@/components/ui'
+import { useNavigate } from 'react-router-dom'
+import { Avatar, Badge, DataTable, PageHeader, StatCard, type Column, type Tone, ButtonLink } from '@/components/ui'
 import { stats } from '@/lib/analytics'
 import { byId, useDB } from '@/lib/db'
 import { useNow } from '@/lib/hooks'
@@ -66,7 +66,7 @@ export function StaffDirectory() {
   return (
     <div>
       <PageHeader title="Staff directory" description="Everyone at the property, what they’re rostered on today and how they’re doing against the standards."
-        actions={<Link to="/manager/join-requests"><Button variant="secondary" icon={UserPlus}>Join requests</Button></Link>} />
+        actions={<ButtonLink to="/manager/join-requests" variant="secondary" icon={UserPlus}>Join requests</ButtonLink>} />
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Staff" value={rows.length} hint={`${rows.filter((r) => r.status === 'active').length} active today`} />
         <StatCard label="Rostered today" value={rows.filter((r) => r.shift).length} hint={`across ${shifts.length} shifts`} />
@@ -75,7 +75,7 @@ export function StaffDirectory() {
       </div>
       {!senior && <Callout tone="neutral" icon={Lock} className="mb-4" title="Full profiles need Senior manager access">You can browse the directory; opening a person’s performance profile asks for a higher tier.</Callout>}
       <DataTable rows={shown} columns={columns} rowKey={(r) => r.p.id} caption="Staff" pageSize={20} onRowClick={(r) => nav(`/manager/staff/${r.p.id}`)} initialSort={{ key: 'name', dir: 'asc' }}
-        search={(r) => `${r.p.name} ${r.p.employeeNo} ${r.p.email} ${r.role?.name} ${r.p.languages?.join(' ')}`} searchPlaceholder="Search name, employee no, email or language" exportName="staff-directory"
+        search={(r) => `${r.p.name} ${r.p.employeeNo} ${r.p.email} ${r.role?.name} ${r.p.languages?.join(' ')}`} searchPlaceholder="Name, employee no. or email" exportName="staff-directory"
         filters={<>
           <FilterSelect label="Team" value={team} onChange={setTeam}><option value="">All teams</option>{teams.map((t) => <option key={t} value={t}>{t}</option>)}</FilterSelect>
           <FilterSelect label="Role" value={role} onChange={setRole}><option value="">All roles</option>{jobRoles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</FilterSelect>

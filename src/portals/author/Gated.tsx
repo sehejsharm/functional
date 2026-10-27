@@ -85,7 +85,7 @@ export function UseResults() {
           </Card>
           <Card className="xl:col-span-2">
             <CardHeader title="How long it really takes" description={`Finished tasks by duration, 3-minute buckets · amber is over the ${target}-minute target`} />
-            <div className="p-5">{hist.length ? <Bars data={hist.map(([k, c]) => [k, c] as [number, number])} unit="m" label="Duration histogram" highlight={(k) => Number(k) >= target} height={190} /> : <p className="text-sm text-muted">No finished tasks in the last 14 days.</p>}</div>
+            <div className="p-5">{hist.length ? <Bars data={hist.map(([k, c]) => [k, c] as [number, number])} unit="m" label="Duration histogram" highlight={(k) => Number(k) > target} height={190} /> : <p className="text-sm text-muted">No finished tasks in the last 14 days.</p>}</div>
           </Card>
         </div>
         <div>

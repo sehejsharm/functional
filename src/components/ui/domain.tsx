@@ -4,7 +4,7 @@ import {
   Bath, Bed, Bell, BellRing, BriefcaseBusiness, Check, ClipboardCheck, DoorOpen, Eye, HelpCircle, Luggage, Moon, Shield, ShoppingCart, Sparkles, SprayCan, Utensils,
   type LucideIcon,
 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Button } from './core'
 
 /** Animated check-off: a stroke-draw rather than a static tick. */
@@ -40,6 +40,12 @@ export const HelpBadge = (p: { onClick: () => void }) => <IconBadge icon={HelpCi
 export function ShiftEventInterstitial({ open, title, lead, details, actionLabel, onAction, footer }: {
   open: boolean; title: string; lead: string; details: ReactNode; actionLabel: string; onAction: () => void; footer?: string
 }) {
+  useEffect(() => {
+    if (!open) return
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onAction() }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [open, onAction])
   return (
     <AnimatePresence>
       {open && (
@@ -54,7 +60,7 @@ export function ShiftEventInterstitial({ open, title, lead, details, actionLabel
               </div>
               <p className="text-ink-2">{lead}</p>
               <div className="mt-4 rounded-card border border-line bg-surface-2 p-4">{details}</div>
-              <Button variant="primary" size="lg" block className="mt-5" onClick={onAction}>{actionLabel}</Button>
+              <Button variant="primary" size="lg" block className="mt-5" onClick={onAction} autoFocus>{actionLabel}</Button>
               {footer && <p className="mt-3 text-center text-xs text-muted">{footer}</p>}
             </div>
           </motion.div>

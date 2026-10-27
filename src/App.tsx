@@ -3,7 +3,7 @@ import { LoginScreen } from './auth/LoginScreen'
 import { RequirePortal, TierGate } from './shell/Guards'
 import { PortalShell, SwitchingOverlay } from './shell/PortalShell'
 import { ConfirmHost, Toaster } from './components/ui'
-import { ScreensDirectory } from './shell/ScreensDirectory'
+import { NotFound, ScreensDirectory } from './shell/ScreensDirectory'
 import { useSession } from './lib/session'
 import type { Portal, Tier } from './lib/types'
 import { EmployeeWork } from './portals/employee/Work'
@@ -53,6 +53,7 @@ export default function App() {
           <Route path="guides/:sopId" element={<EmployeeGuideDetail />} />
           <Route path="reports" element={<EmployeeReports />} />
           <Route path="me" element={<EmployeeMe />} />
+          <Route path="*" element={<NotFound inline />} />
         </Route>
         <Route path="/manager" element={<PortalLayout portal="manager" />}>
           <Route index element={<ManagerOverview />} />
@@ -73,6 +74,7 @@ export default function App() {
           <Route path="lead/board" element={gate('manager', 'senior', 'Property board', <PropertyBoard />)} />
           <Route path="lead/planner" element={gate('manager', 'senior', 'Shift planner', <ShiftPlanner />)} />
           <Route path="lead/pulse" element={gate('manager', 'senior', 'Operations pulse', <OperationsPulse />)} />
+          <Route path="*" element={<NotFound inline />} />
         </Route>
         <Route path="/author" element={<PortalLayout portal="author" />}>
           <Route index element={<MySops />} />
@@ -83,9 +85,10 @@ export default function App() {
           <Route path="reviews" element={<ReviewsReleases />} />
           <Route path="reviews/:id" element={<VersionReview />} />
           <Route path="use-results" element={gate('author', 'senior', 'Use & results', <UseResults />)} />
-          <Route path="platform" element={gate('author', 'admin', 'Platform foundation', <PlatformFoundation />)} />
+          <Route path="platform" element={gate('author', 'admin', 'Platform & audit', <PlatformFoundation />)} />
+          <Route path="*" element={<NotFound inline />} />
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={accountId ? <NotFound /> : <Navigate to="/" replace />} />
       </Routes>
     </>
   )

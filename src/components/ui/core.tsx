@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { motion } from 'framer-motion'
 import { Loader2, type LucideIcon } from 'lucide-react'
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'gold' | 'link' | 'light'
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg'
@@ -44,12 +45,25 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   )
 })
 
+/** A navigation link that looks like a Button (never nest a Button inside a Link). */
+export function ButtonLink({ to, variant = 'secondary', size = 'md', icon: I, iconRight: IR, block, className, children, onClick }: {
+  to: string; variant?: ButtonVariant; size?: ButtonSize; icon?: LucideIcon; iconRight?: LucideIcon; block?: boolean; className?: string; children: ReactNode; onClick?: () => void
+}) {
+  const iconSize = size === 'lg' ? 18 : size === 'md' ? 16 : 14
+  return (
+    <Link to={to} onClick={onClick} className={clsx('inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-cell font-semibold transition-colors',
+      variant !== 'link' && BTN_SIZE[size], BTN_VARIANT[variant], block && 'w-full', className)}>
+      {I && <I size={iconSize} aria-hidden />}{children}{IR && <IR size={iconSize} aria-hidden />}
+    </Link>
+  )
+}
+
 export function IconButton({ icon: I, label, size = 'md', variant = 'ghost', className, badge, ...rest }:
   Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & { icon: LucideIcon; label: string; size?: 'sm' | 'md'; variant?: 'ghost' | 'secondary' | 'dark'; badge?: number }) {
   return (
     <button type="button" aria-label={label} title={label}
       className={clsx('relative inline-grid shrink-0 place-items-center rounded-cell transition-colors disabled:opacity-50',
-        size === 'sm' ? 'h-8 w-8' : 'h-9 w-9',
+        size === 'sm' ? 'h-8 w-8' : 'h-11 w-11 lg:h-9 lg:w-9',
         variant === 'ghost' && 'text-ink-2 hover:bg-ink/5 hover:text-ink',
         variant === 'secondary' && 'border border-line-strong bg-surface text-ink-2 shadow-sm hover:bg-surface-2',
         variant === 'dark' && 'text-sage-300 hover:bg-white/10 hover:text-white', className)} {...rest}>

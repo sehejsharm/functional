@@ -146,7 +146,7 @@ export function StatCard({ label, value, unit, delta, deltaLabel = 'vs last week
     <div className={clsx('card h-full p-4 transition', to && 'hover:border-forest-600/40 hover:shadow-pop')}>
       <div className="flex items-start justify-between gap-2">
         <div className="text-xs font-medium text-muted">{label}</div>
-        {I && <span className="grid h-7 w-7 place-items-center rounded-cell bg-forest-50 text-forest-700"><I size={14} /></span>}
+        {I && <span className="grid h-7 w-7 shrink-0 place-items-center rounded-cell bg-forest-50 text-forest-700"><I size={14} /></span>}
       </div>
       <div className="mt-2 flex items-end justify-between gap-3">
         <div className="min-w-0">
@@ -163,7 +163,7 @@ export function StatCard({ label, value, unit, delta, deltaLabel = 'vs last week
             {hint && <span className="text-muted">{hint}</span>}
           </div>
         </div>
-        {trend && <Sparkline data={trend} tone={good === false ? 'danger' : 'brand'} />}
+        {trend && <span className="hidden shrink-0 sm:block"><Sparkline data={trend} tone={good === false ? 'danger' : 'brand'} width={80} /></span>}
       </div>
     </div>
   )

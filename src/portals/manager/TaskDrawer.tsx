@@ -155,7 +155,7 @@ export function TaskDrawer({ taskId, onClose }: { taskId: string | null; onClose
     })
     if (t.returned && !items.some((i) => i.at === t.returned!.at)) items.push({ id: 'ret', at: t.returned.at, icon: RotateCcw, tone: 'danger', title: <>Sent back by <b>{L.name(t.returned.byId)}</b></>, meta: fDateTime(t.returned.at), body: `“${t.returned.note}”` })
     if (t.startedAt) items.push({ id: 'start', at: t.startedAt, icon: PlayCircle, tone: 'info', title: <><b>{L.name(t.personId)}</b> started the room</>, meta: fDateTime(t.startedAt) })
-    if (t.completedAt) items.push({ id: 'done', at: t.completedAt, icon: CheckCircle2, tone: 'success', title: t.verifiedById ? 'Finished and passed verification' : 'Finished — no independent check needed', meta: fDateTime(t.completedAt) })
+    if (t.completedAt) items.push({ id: 'done', at: t.completedAt, icon: CheckCircle2, tone: t.verifiedById || t.status === 'awaiting_verification' ? 'info' : 'success', title: t.status === 'awaiting_verification' || t.verifiedById ? 'Steps finished · check requested' : 'Finished — no independent check needed', meta: fDateTime(t.completedAt) })
     if (t.verifiedAt && t.verifiedById) items.push({ id: 'ver', at: t.verifiedAt, icon: ShieldCheck, tone: 'success', title: <>Verified by <b>{L.name(t.verifiedById)}</b></>, meta: fDateTime(t.verifiedAt) })
     if (t.cancelled) items.push({ id: 'cx', at: t.cancelled.at, icon: Ban, tone: 'neutral', title: <>Cancelled by <b>{L.name(t.cancelled.byId)}</b></>, meta: fDateTime(t.cancelled.at), body: t.cancelled.reason })
     return items.sort((a, b) => (a.at || '0').localeCompare(b.at || '0'))

@@ -1,6 +1,7 @@
-import { ArrowUpRight, Briefcase, ClipboardList, Library, Lock, type LucideIcon } from 'lucide-react'
+import { ArrowUpRight, Briefcase, ClipboardList, Compass, Library, Lock, type LucideIcon } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Badge, Logo, PageHeader } from '@/components/ui'
+import { Badge, ButtonLink, EmptyState, Logo, PageHeader } from '@/components/ui'
+import { useSession } from '@/lib/session'
 
 // The product's own feature inventory. Gated screens need Senior manager / Property admin.
 const GROUPS: { title: string; who: string; icon: LucideIcon; screens: [string, string, boolean?][] }[] = [
@@ -27,7 +28,7 @@ export function ScreensDirectory() {
       <header className="sidebar-surface px-6 py-5">
         <div className="mx-auto flex max-w-6xl items-center justify-between"><Link to="/" aria-label="Mise home"><Logo /></Link><Link to="/" className="text-sm font-medium text-sage-200 hover:text-white">Sign in</Link></div>
       </header>
-      <div className="mx-auto max-w-6xl px-6 py-10">
+      <main className="mx-auto max-w-6xl px-6 py-10">
         <PageHeader eyebrow="Product map" title="All screens" description="Every part of Mise, grouped by who uses it. Locked screens need a Senior manager or Property admin tier." />
         <div className="grid gap-5 lg:grid-cols-3">
           {GROUPS.map((g) => (
@@ -50,7 +51,26 @@ export function ScreensDirectory() {
             </section>
           ))}
         </div>
-      </div>
+      </main>
+    </div>
+  )
+}
+
+/** Unknown address inside the app. */
+export function NotFound({ inline }: { inline?: boolean }) {
+  const portal = useSession((s) => s.portal)
+  if (inline) return (
+    <div className="card mx-auto mt-6 max-w-md">
+      <EmptyState icon={Compass} title="This page doesn’t exist" description="The link may be old or mistyped. Nothing was changed."
+        action={<ButtonLink to={portal ? `/${portal}` : '/'} variant="primary">Back to the start</ButtonLink>} />
+    </div>
+  )
+  return (
+    <div className="grid min-h-full place-items-center bg-canvas px-6">
+      <main className="card w-full max-w-md">
+        <EmptyState icon={Compass} title="This page doesn’t exist" description="The link may be old or mistyped. Nothing was changed."
+          action={<div className="flex flex-wrap justify-center gap-2"><ButtonLink to={portal ? `/${portal}` : '/'} variant="primary">Back to your workspace</ButtonLink><ButtonLink to="/screens">All screens</ButtonLink></div>} />
+      </main>
     </div>
   )
 }

@@ -150,7 +150,7 @@ export function MySops() {
         ]} />
         {loading ? <Skeleton className="h-96 rounded-card" /> : (
           <DataTable rows={visible} columns={columns} rowKey={(r) => r.sopId} onRowClick={(r) => nav(`/author/sops/${r.sopId}`)}
-            search={(r) => `${r.code} ${r.title} ${r.department} ${r.version}`} searchPlaceholder="Search code, title or department"
+            search={(r) => `${r.code} ${r.title} ${r.department} ${r.version}`} searchPlaceholder="Code, title, department"
             filters={<Select aria-label="Department" className="h-9 w-full py-1.5 sm:w-48" value={dept} onChange={(e) => setDept(e.target.value)}>
               <option value="all">All departments</option>{departments.map((d) => <option key={d}>{d}</option>)}
             </Select>}

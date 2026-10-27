@@ -34,7 +34,11 @@ export function CommandPalette({ portal }: { portal: Portal }) {
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
   }, [open, setOpen])
-  useEffect(() => { if (open) { setQ(''); setI(0); setTimeout(() => input.current?.focus(), 30) } }, [open])
+  const opener = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    if (open) { opener.current = document.activeElement as HTMLElement | null; setQ(''); setI(0); setTimeout(() => input.current?.focus(), 30) }
+    else if (opener.current && document.contains(opener.current)) { opener.current.focus({ preventScroll: true }); opener.current = null }
+  }, [open])
 
   const all = useMemo<Cmd[]>(() => {
     const out: Cmd[] = NAV[portal].filter((n) => !n.need || canAccess(grant?.tier, n.need)).map((n) => ({ id: `nav-${n.to}`, group: 'Go to', label: n.label, icon: n.icon, to: n.to, hint: n.group }))

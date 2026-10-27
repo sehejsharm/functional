@@ -22,7 +22,7 @@ export function stats(tasks: Task[], versions: SopVersion[], now = Date.now()): 
 
 export function byDay(tasks: Task[], versions: SopVersion[], days: number, now = Date.now()) {
   return Array.from({ length: days }, (_, i) => {
-    const key = hotelDateKey(now - (days - i) * 86_400_000)
+    const key = hotelDateKey(now - (days - 1 - i) * 86_400_000)
     const s = stats(tasks.filter((t) => hotelDateKey(t.start) === key), versions, now)
     return { key, ...s }
   })

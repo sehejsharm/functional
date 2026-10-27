@@ -33,8 +33,11 @@ export function setModeForTasks(tasks: Task[], mode: Task['mode'], actorId: stri
 }
 
 export function decideCoverAs(item: CoverItem, status: 'approved' | 'declined', actorId: string, label: string) {
+  // A stale tab must not re-decide an item someone already handled.
+  if (db().cover.find((c) => c.id === item.id)?.status !== 'pending') return false
   db().decideCover(item.id, status)
   db().log(actorId, `cover.${status}`, label)
+  return true
 }
 
 export function decideJoinAs(id: string, status: 'approved' | 'declined', actorId: string) {

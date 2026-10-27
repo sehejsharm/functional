@@ -204,10 +204,9 @@ export function buildSeed(now = Date.now()) {
   }
   const tasks: Task[] = [
     task('t-114', 'r114', now - 2 * MIN, { priority: 'urgent' }),
-    task('t-208', 'r208', now + 40 * MIN),
+    task('t-208', 'r208', now + 40 * MIN, { urgentEnded: { at: iso(now - 20 * MIN), reason: 'The guest extended checkout to 2 PM', seen: false } }),
     task('t-312', 'r312', now + 85 * MIN, { priority: 'high', notes: 'VIP arrival at 4 PM — fresh flowers on the desk.' }),
-    task('t-305', 'r305', now - 3 * HOUR, { status: 'done', doneStepIds: ['s1', 's2', 's3'], startedAt: iso(now - 3 * HOUR), completedAt: iso(now - 2.5 * HOUR), verifiedById: 'elena', verifiedAt: iso(now - 2.4 * HOUR),
-      urgentEnded: { at: iso(now - 20 * MIN), reason: "It's been pending for too long", seen: false } }),
+    task('t-305', 'r305', now - 3 * HOUR, { status: 'done', doneStepIds: ['s1', 's2', 's3'], startedAt: iso(now - 3 * HOUR), completedAt: iso(now - 2.5 * HOUR), verifiedById: 'elena', verifiedAt: iso(now - 2.4 * HOUR) }),
     task('t-m5', 'r309', now - 100 * MIN, { sopVersionId: 'hk-minibar-1', status: 'done', doneStepIds: stepsOf('hk-minibar-1'), startedAt: iso(now - 100 * MIN), completedAt: iso(now - 94 * MIN), verifiedById: 'elena', verifiedAt: iso(now - 80 * MIN) }),
     task('t-k1', 'r101', now - 4 * HOUR, { personId: mate, status: 'done', doneStepIds: ['s1', 's2', 's3'], startedAt: iso(now - 4 * HOUR), completedAt: iso(now - 3.4 * HOUR), verifiedById: 'elena', verifiedAt: iso(now - 3.3 * HOUR) }),
     task('t-k2', 'r120', now - 30 * MIN, { personId: mate, status: 'in_progress', doneStepIds: ['s1'], startedAt: iso(now - 30 * MIN) }),

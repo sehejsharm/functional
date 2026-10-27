@@ -5,8 +5,7 @@ import {
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  Avatar, Badge, Button, Card, CardHeader, DataTable, EmptyState, PageHeader, Section, StatCard, Switch, Tabs, Timeline, type Column, type Tone,
-} from '@/components/ui'
+  Avatar, Badge, Button, Card, CardHeader, DataTable, EmptyState, PageHeader, Section, StatCard, Switch, Tabs, Timeline, type Column, type Tone, ButtonLink } from '@/components/ui'
 import { byDay, stats } from '@/lib/analytics'
 import { byId, useDB } from '@/lib/db'
 import { useNow } from '@/lib/hooks'
@@ -77,12 +76,12 @@ export function ManagerOverview() {
     ...hot.map((i): QueueItem => ({
       id: i.id, rank: i.severity === 'critical' ? 0.2 : 1.5, icon: AlertOctagon, tone: 'danger', at: i.at,
       title: i.title, sub: <>{SEVERITY[i.severity].label} · {i.roomId ? `Room ${L.room(i.roomId)?.number} · ` : ''}{i.assignedToId ? `with ${L.name(i.assignedToId)}` : 'unassigned'} · {fAge(i.at, now)} old</>,
-      actions: <Link to={`/manager/incidents?id=${i.id}`}><Button size="xs" variant="secondary">Open</Button></Link>,
+      actions: <ButtonLink to={`/manager/incidents?id=${i.id}`} size="xs" variant="secondary">Open</ButtonLink>,
     })),
     ...cover.filter((c) => c.status === 'pending').map((c): QueueItem => ({
       id: c.id, rank: 2, icon: CalendarClock, tone: 'info', at: `${c.date}T06:00:00.000Z`,
       title: <>{L.name(c.personId)} · {COVER_KIND[c.kind].label.toLowerCase()}</>, sub: <>{byId(shifts, c.shiftId)?.name} · {fDate(`${c.date}T06:00:00Z`)} · {c.note}</>,
-      actions: <Link to="/manager/shift-cover"><Button size="xs" variant="secondary">Review</Button></Link>,
+      actions: <ButtonLink to="/manager/shift-cover" size="xs" variant="secondary">Review</ButtonLink>,
     })),
   ].sort((a, b) => a.rank - b.rank || a.at.localeCompare(b.at))
 
@@ -96,7 +95,7 @@ export function ManagerOverview() {
         description={queue.length ? `${queue.length} thing${queue.length === 1 ? '' : 's'} need${queue.length === 1 ? 's' : ''} you. Start at the top of the list.` : 'Nothing needs you right now. The floor is running to plan.'}
         actions={<>
           <ShiftSwitcher shifts={shifts} value={shift.id} onChange={setShiftId} liveId={live?.id} size="sm" />
-          <Link to="/manager/assign-rooms"><Button variant="primary" icon={ClipboardList}>Assign work</Button></Link>
+          <ButtonLink to="/manager/assign-rooms" variant="primary" icon={ClipboardList}>Assign work</ButtonLink>
         </>} />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
@@ -105,7 +104,7 @@ export function ManagerOverview() {
         <StatCard label="On-time · last 7 days" value={week.onTimePct} unit="%" icon={Clock} trend={trend.length > 1 ? trend : undefined} to="/manager/team-progress"
           delta={prior.completed ? week.onTimePct - prior.onTimePct : null} />
         <StatCard label="Awaiting verification" value={awaiting.length} icon={ShieldCheck} to="/manager/tasks?status=awaiting_verification"
-          hint={awaiting.length ? `Oldest ${fAge(awaiting.map((t) => t.startedAt ?? t.start).sort()[0], now)}` : 'All checked'} />
+          hint={awaiting.length ? `Oldest ${fAge(awaiting.map((t) => t.completedAt ?? t.startedAt ?? t.start).sort()[0], now)}` : 'All checked'} />
         <StatCard label="Open incidents" value={openIssues.length} icon={AlertOctagon} to="/manager/incidents" hint={`${hot.length} high or critical`} />
         <StatCard label={`Attendance · ${shift.name}`} value={confirmed} unit={`/${shift.staffTarget}`} icon={Users} to="/manager/shift-cover"
           hint={confirmed >= shift.staffTarget ? 'At staff target' : `${shift.staffTarget - confirmed} short of target`} />
@@ -244,7 +243,7 @@ export function GuidedOrStandard() {
       const isStd = open.length > 0 && std === open.length
       return (
         <div className="flex items-center gap-3">
-          <Switch checked={isStd} disabled={!open.length} onChange={(v) => toggle(p, v)} label={!open.length ? 'No open rooms' : isStd ? 'Standard' : std ? `Mixed (${std} of ${open.length} Standard)` : 'Guided'} />
+          <Switch checked={isStd} disabled={!open.length} ariaLabel={`Standard mode for ${p.name}`} onChange={(v) => toggle(p, v)} label={!open.length ? 'No open rooms' : isStd ? 'Standard' : std ? `Mixed (${std} of ${open.length} Standard)` : 'Guided'} />
         </div>
       )
     } },
