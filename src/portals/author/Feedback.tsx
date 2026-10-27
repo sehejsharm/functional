@@ -1,58 +1,133 @@
-import { RefreshCw, Star } from 'lucide-react'
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Button, Empty, PageHeader, Pill, Section } from '@/components/ui'
+import { CheckCheck, FilePen, Inbox, MessageSquareQuote, RotateCcw, Star } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { HBars } from '@/components/Charts'
+import { Avatar, Badge, Button, Card, CardHeader, EmptyState, PageHeader, SearchBox, Select, Tabs } from '@/components/ui'
 import { byId, useDB } from '@/lib/db'
 import { fDateTime } from '@/lib/time'
-import type { Feedback as FB, FeedbackLane } from '@/lib/types'
-import { usePersona } from '@/shell/PortalShell'
+import { toast } from '@/lib/toast'
+import type { Feedback, FeedbackLane } from '@/lib/types'
+import { relTime } from '@/shell/PortalShell'
+import { markFeedbackDone, reopenFeedback } from './actions'
+import { Stars, VersionTag, useSopCommands } from './components'
 
-const CAP = 25
+const LANE: Record<FeedbackLane, { label: string; tone: 'info' | 'gold' | 'brand' }> = {
+  suggestion: { label: 'Suggestion', tone: 'info' }, manager_request: { label: 'Manager request', tone: 'brand' }, rating: { label: 'Rating', tone: 'gold' },
+}
+
+/** One feedback item: who, which SOP and step, what they said, and what the author can do with it. */
+export function FeedbackCard({ f }: { f: Feedback }) {
+  const db = useDB()
+  const cmd = useSopCommands()
+  const v = byId(db.sopVersions, f.sopVersionId)
+  const from = byId(db.people, f.fromId)
+  const stepIdx = v?.steps.findIndex((s) => s.id === f.stepId) ?? -1
+  const step = stepIdx >= 0 ? v!.steps[stepIdx] : undefined
+  const sop = v && byId(db.sops, v.sopId)
+  const stale = v && sop?.currentVersionId && sop.currentVersionId !== v.id
+  return (
+    <li className="card p-4 sm:p-5">
+      <div className="flex items-start gap-3">
+        <Avatar name={from?.name} size={36} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-sm font-semibold text-ink">{from?.name ?? 'Someone'}</span>
+            <span className="text-xs text-muted">{from?.title}</span>
+            <span className="text-xs text-muted" title={fDateTime(f.at)}>· {relTime(f.at)}</span>
+            <Badge tone={LANE[f.lane].tone}>{LANE[f.lane].label}</Badge>
+            {f.status === 'done' && <Badge tone="success" dot>Done</Badge>}
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+            {v && <Link to={`/author/sops/${v.sopId}`} className="font-mono text-[12px] font-semibold text-forest-700 hover:underline">{v.code}</Link>}
+            {v && <VersionTag label={v.version} />}
+            {stale && <span className="text-muted">(now {byId(db.sopVersions, sop!.currentVersionId)?.version})</span>}
+            {step && <span className="truncate text-ink-2">Step {stepIdx + 1} · {step.instruction.length > 70 ? `${step.instruction.slice(0, 70)}…` : step.instruction}</span>}
+          </div>
+          {f.lane === 'rating' && f.rating != null && <div className="mt-2"><Stars value={f.rating} /></div>}
+          <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-ink">{f.text}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {f.status === 'open' ? <>
+              <Button size="sm" variant="primary" icon={FilePen} onClick={() => cmd.applyFeedback(f)}>Start revision with this</Button>
+              <Button size="sm" icon={CheckCheck} onClick={() => { markFeedbackDone(f, cmd.me); toast.success('Marked done', { description: `${from?.name ?? 'The sender'}’s ${LANE[f.lane].label.toLowerCase()} moved to Done.`, action: { label: 'Undo', onClick: () => reopenFeedback(f.id) } }) }}>Mark done</Button>
+            </> : <Button size="sm" variant="ghost" icon={RotateCcw} onClick={() => { reopenFeedback(f.id); toast.info('Moved back to the inbox') }}>Reopen</Button>}
+          </div>
+        </div>
+      </div>
+    </li>
+  )
+}
+
+type TabId = 'suggestion' | 'manager_request' | 'rating' | 'done'
 
 export function FeedbackRequests() {
-  const { person } = usePersona('author')
-  const { feedback, sopVersions, people, newDraftFrom, resolveFeedback } = useDB()
-  const nav = useNavigate()
-  const [all, setAll] = useState(false)
-  const [tick, setTick] = useState(0)
-  const lane = (l: FeedbackLane) => feedback.filter((f) => f.lane === l && (all || f.status === 'open')).slice(0, CAP)
-
-  const Item = ({ f }: { f: FB }) => {
-    const v = byId(sopVersions, f.sopVersionId)
-    const stepN = v?.steps.findIndex((s) => s.id === f.stepId)
-    return (
-      <li className="rounded-xl bg-forest-950/40 p-4">
-        <div className="flex flex-wrap items-center gap-2 text-xs"><Pill tone="gold">{v?.code} · {v?.version}</Pill>{stepN !== undefined && stepN >= 0 && <Pill>Step {stepN + 1}</Pill>}
-          <span className="text-sage-300">{byId(people, f.fromId)?.name} · {fDateTime(f.at)}</span>{f.status === 'done' && <Pill tone="ok">Completed</Pill>}</div>
-        {f.rating && <div className="mt-2 flex gap-0.5 text-gold-400">{Array.from({ length: 5 }, (_, i) => <Star key={i} size={14} fill={i < f.rating! ? 'currentColor' : 'none'} />)}</div>}
-        <p className="mt-2 whitespace-pre-wrap text-sm text-white">{f.text}</p>
-        {f.status === 'open' && <div className="mt-3 flex gap-2">
-          <Button size="sm" variant="gold" onClick={() => nav(`/author/edit/${newDraftFrom(f.sopVersionId, person!.id, { feedbackId: f.id, text: f.text, stepId: f.stepId }).id}`)}>Start a draft from this feedback</Button>
-          <Button size="sm" variant="ghost" onClick={() => resolveFeedback(f.id)}>Mark done</Button>
-        </div>}
-      </li>
-    )
+  const db = useDB()
+  const [tab, setTab] = useState<TabId>('suggestion')
+  const [sop, setSop] = useState('all')
+  const [q, setQ] = useState('')
+  const sopOf = (f: Feedback) => byId(db.sopVersions, f.sopVersionId)?.sopId ?? ''
+  const open = db.feedback.filter((f) => f.status === 'open')
+  const counts = {
+    suggestion: open.filter((f) => f.lane === 'suggestion').length, manager_request: open.filter((f) => f.lane === 'manager_request').length,
+    rating: open.filter((f) => f.lane === 'rating').length, done: db.feedback.filter((f) => f.status === 'done').length,
   }
+  const list = db.feedback
+    .filter((f) => (tab === 'done' ? f.status === 'done' : f.status === 'open' && f.lane === tab))
+    .filter((f) => sop === 'all' || sopOf(f) === sop)
+    .filter((f) => !q.trim() || `${f.text} ${byId(db.people, f.fromId)?.name} ${byId(db.sopVersions, f.sopVersionId)?.code}`.toLowerCase().includes(q.trim().toLowerCase()))
+    .sort((a, b) => b.at.localeCompare(a.at))
+  const sops = [...new Map(db.feedback.map((f) => { const v = byId(db.sopVersions, f.sopVersionId); return [v?.sopId ?? '', v?.code ?? ''] as const })).entries()].filter(([id]) => id)
 
-  const sugg = lane('suggestion'), ratings = lane('rating'), reqs = lane('manager_request')
+  // Ratings summary: every rating counts (open or done), grouped by SOP.
+  const ratingSummary = useMemo(() => {
+    const m = new Map<string, { code: string; title: string; sum: number; n: number }>()
+    db.feedback.filter((f) => f.lane === 'rating' && f.rating != null).forEach((f) => {
+      const v = byId(db.sopVersions, f.sopVersionId); if (!v) return
+      const e = m.get(v.sopId) ?? { code: v.code, title: v.title, sum: 0, n: 0 }
+      e.sum += f.rating!; e.n++; m.set(v.sopId, e)
+    })
+    return [...m.values()].map((e) => ({ ...e, avg: Math.round((e.sum / e.n) * 10) / 10 })).sort((a, b) => b.avg - a.avg)
+  }, [db.feedback, db.sopVersions])
+  const overall = ratingSummary.length ? ratingSummary.reduce((a, e) => a + e.sum, 0) / ratingSummary.reduce((a, e) => a + e.n, 0) : 0
+
   return (
-    <div className="space-y-6" key={tick}>
-      <PageHeader eyebrow="Author" title="Feedback & requests" tagline="What people say about each SOP version." />
-      <Section title="Employee suggestions" right={<div className="flex items-center gap-4">
-        <label className="flex items-center gap-2 text-sm text-sage-200"><input type="checkbox" className="accent-[rgb(201,162,75)]" checked={all} onChange={(e) => setAll(e.target.checked)} /> Include completed decisions</label>
-        <Button size="sm" variant="ghost" onClick={() => setTick((t) => t + 1)}><RefreshCw size={14} /> Refresh</Button></div>}>
-        <p className="-mt-2 mb-4 text-sm text-sage-300">Specific corrections to the exact SOP and step an employee received.</p>
-        {sugg.length ? <ul className="space-y-2">{sugg.map((f) => <Item key={f.id} f={f} />)}</ul> : <Empty title="No suggestions in this view" />}
-      </Section>
-      <Section title={<>Ratings & feedback <span className="text-sage-300">({ratings.length})</span></>}>
-        <p className="-mt-2 mb-4 text-sm text-sage-300">Responses, not unique people. Notes are shown as submitted.</p>
-        {ratings.length ? <ul className="space-y-2">{ratings.map((f) => <Item key={f.id} f={f} />)}</ul> : <Empty title="No responses in this selection." />}
-      </Section>
-      <Section title={<>Manager requests <span className="text-sage-300">({reqs.length})</span></>}>
-        {reqs.length ? <ul className="space-y-2">{reqs.map((f) => <Item key={f.id} f={f} />)}</ul>
-          : <Empty title="No requests waiting in this view" body="Choose All statuses to include completed decisions." />}
-      </Section>
-      <p className="text-xs text-sage-300">Partial list · latest {CAP} responses and up to {CAP} requests</p>
+    <div className="space-y-6">
+      <PageHeader eyebrow="Hotel standards" title="Feedback & requests"
+        description="What staff and managers say about each SOP version. Turn a suggestion into a revision in one step — the note lands on the step it is about.">
+        <Tabs value={tab} onChange={setTab} items={[
+          { id: 'suggestion', label: 'Suggestions', count: counts.suggestion }, { id: 'manager_request', label: 'Manager requests', count: counts.manager_request },
+          { id: 'rating', label: 'Ratings', count: counts.rating }, { id: 'done', label: 'Done', count: counts.done },
+        ]} />
+      </PageHeader>
+
+      {tab === 'rating' && (
+        <Card>
+          <CardHeader icon={Star} title="Average rating by SOP" description="All ratings received, open and done. Responses, not unique people." />
+          <div className="grid gap-6 p-5 md:grid-cols-[220px_1fr]">
+            <div className="flex flex-col items-start justify-center gap-1.5 rounded-cell bg-gold-50 p-4 ring-1 ring-inset ring-gold-500/25">
+              <span className="text-xs font-medium text-gold-700">Overall</span>
+              <span className="text-4xl font-semibold tabular text-ink">{overall ? overall.toFixed(1) : '—'}<span className="text-base font-medium text-muted"> / 5</span></span>
+              {overall > 0 && <Stars value={overall} size={16} />}
+              <span className="text-xs text-muted">{ratingSummary.reduce((a, e) => a + e.n, 0)} ratings across {ratingSummary.length} SOPs</span>
+            </div>
+            {ratingSummary.length ? <HBars max={5} tone="gold" data={ratingSummary.map((e) => ({ label: `${e.code} · ${e.title}`, value: e.avg, hint: `${e.n} rating${e.n === 1 ? '' : 's'}` }))} />
+              : <p className="text-sm text-muted">No ratings yet.</p>}
+          </div>
+        </Card>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <SearchBox value={q} onChange={setQ} placeholder="Search feedback" className="w-full sm:w-72" />
+        <Select aria-label="Filter by SOP" className="h-9 w-full py-1.5 sm:w-56" value={sop} onChange={(e) => setSop(e.target.value)}>
+          <option value="all">All SOPs</option>{sops.map(([id, code]) => <option key={id} value={id}>{code}</option>)}
+        </Select>
+        <span className="ml-auto text-xs text-muted">{list.length} item{list.length === 1 ? '' : 's'}</span>
+      </div>
+
+      {list.length ? <ul className="space-y-3">{list.map((f) => <FeedbackCard key={f.id} f={f} />)}</ul> : (
+        <Card><EmptyState icon={tab === 'done' ? Inbox : MessageSquareQuote}
+          title={q || sop !== 'all' ? 'Nothing matches this filter' : tab === 'done' ? 'Nothing marked done yet' : 'Inbox zero'}
+          description={tab === 'done' ? 'Items you act on or mark done are kept here.' : 'New feedback from staff and managers lands here as it arrives.'} /></Card>
+      )}
     </div>
   )
 }
