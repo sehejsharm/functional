@@ -8,6 +8,7 @@ import { byDay, durationHistogram, stats } from '@/lib/analytics'
 import { downloadCsv } from '@/lib/csv'
 import { APPROVALS_REQUIRED, byId, useDB } from '@/lib/db'
 import { tierLabel } from '@/lib/permissions'
+import { useSession } from '@/lib/session'
 import { fDate, fDateTime, hotelDateKey, minutesBetween } from '@/lib/time'
 import { confirm, toast } from '@/lib/toast'
 import type { AuditEntry, SopVersion, Tier } from '@/lib/types'
@@ -160,6 +161,7 @@ const TIERS: { tier: Tier; can: string[] }[] = [
 function Roles() {
   const db = useDB()
   const { grant } = usePersona('author')
+  const demoTier = useSession((s) => s.demoTier)
   type R = { id: string; name: string; team: string; total: number; active: number; leave: number; sops: number }
   const rows: R[] = db.jobRoles.map((r) => {
     const ppl = db.people.filter((p) => p.jobRoleId === r.id)
@@ -169,15 +171,14 @@ function Roles() {
   const columns: Column<R>[] = [
     { key: 'name', header: 'Job role', sort: (r) => r.name, cell: (r) => <span className="font-medium text-ink">{r.name}</span> },
     { key: 'team', header: 'Team', sort: (r) => r.team, cell: (r) => <span className="text-ink-2">{r.team}</span> },
-    { key: 'total', header: 'Headcount', sort: (r) => r.total, align: 'right', cell: (r) => r.total },
-    { key: 'active', header: 'Active', sort: (r) => r.active, align: 'right', hideOnMobile: true, cell: (r) => r.active },
-    { key: 'leave', header: 'On leave', sort: (r) => r.leave, align: 'right', hideOnMobile: true, cell: (r) => r.leave || <span className="text-muted">—</span> },
+    { key: 'total', header: 'Staff', sort: (r) => r.total, align: 'right', cell: (r) => r.total },
+    { key: 'active', header: 'Active', sort: (r) => r.active, align: 'right', hideOnMobile: true, csv: (r) => r.active, cell: (r) => <span>{r.active}{r.leave > 0 && <span className="ml-1 text-xs text-muted">({r.leave} on leave)</span>}</span> },
     { key: 'sops', header: 'Live SOPs', sort: (r) => r.sops, align: 'right', cell: (r) => r.sops || <span className="text-muted">—</span> },
   ]
   return (
-    <div className="grid gap-6 xl:grid-cols-5">
-      <div className="xl:col-span-3"><DataTable rows={rows} columns={columns} rowKey={(r) => r.id} initialSort={{ key: 'team', dir: 'asc' }} exportName="mise-job-roles" caption="Job roles" /></div>
-      <div className="space-y-6 xl:col-span-2">
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="min-w-0"><DataTable rows={rows} columns={columns} rowKey={(r) => r.id} initialSort={{ key: 'team', dir: 'asc' }} exportName="mise-job-roles" caption="Job roles" /></div>
+      <div className="space-y-6">
         <Card>
           <CardHeader icon={KeyRound} title="Access tiers" description="Each portal grant carries a tier. Higher tiers include everything below them." />
           <ol className="divide-y divide-line">
@@ -198,7 +199,7 @@ function Roles() {
             {db.accounts.flatMap((a) => a.grants).map((g) => (
               <li key={g.portal} className="flex items-center justify-between gap-3 px-5 py-3">
                 <PersonChip id={g.personId} sub={`${g.portal[0].toUpperCase()}${g.portal.slice(1)} portal`} />
-                <Badge>{tierLabel[g.tier]}</Badge>
+                <span className="flex flex-col items-end gap-0.5"><Badge>{tierLabel[g.portal !== 'employee' && demoTier ? demoTier : g.tier]}</Badge>{g.portal !== 'employee' && demoTier && demoTier !== g.tier && <span className="text-2xs text-muted">demo override · granted {tierLabel[g.tier]}</span>}</span>
               </li>
             ))}
           </ul>
