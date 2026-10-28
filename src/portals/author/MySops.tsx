@@ -2,16 +2,18 @@ import { HelpCircle, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Count, Empty, PageHeader, Pill, SearchBox, Section } from '@/components/ui'
-import { useDB } from '@/lib/db'
+import { REVIEW_REQUIRED, useDB } from '@/lib/db'
 import { fDateTime } from '@/lib/time'
 import { usePersona } from '@/shell/PortalShell'
 
 export function MySops() {
   const { person } = usePersona('author')
-  const { sopVersions, tasks, ackEvents, feedback, newDraftFrom, deleteDraft } = useDB()
+  const { sopVersions, tasks, ackEvents, feedback, newDraftFrom, deleteDraft, release } = useDB()
   const nav = useNavigate()
   const [q, setQ] = useState('')
   const drafts = sopVersions.filter((v) => v.authorId === person?.id && (v.status === 'draft' || v.status === 'changes_requested'))
+  // Versions sent for review before reviews were switched off can be published straight from here.
+  const waiting = REVIEW_REQUIRED ? [] : sopVersions.filter((v) => v.status === 'in_review' || v.status === 'changes_requested')
   const published = sopVersions.filter((v) => v.status === 'published' && `${v.title} ${v.code} ${v.version}`.toLowerCase().includes(q.toLowerCase()))
 
   return (
@@ -26,6 +28,15 @@ export function MySops() {
             <div className="flex gap-2 text-xs text-sage-300">{fDateTime(d.updatedAt)}{d.status === 'draft' && <button className="text-danger hover:underline" onClick={() => deleteDraft(d.id)}>Delete</button>}</div>
           </li>))}</ul> : <Empty title="No draft in progress." />}
       </Section>
+      {waiting.length > 0 && (
+        <Section title={<>Ready to publish <Count n={waiting.length} /></>}>
+          <ul className="space-y-2">{waiting.map((v) => (
+            <li key={v.id} className="flex items-center justify-between rounded-xl bg-forest-950/40 px-4 py-3">
+              <span><b className="text-white">{v.code}</b> · {v.title}</span>
+              <Button size="sm" variant="gold" onClick={() => release(v.id, person!.id)}>Publish</Button>
+            </li>))}</ul>
+        </Section>
+      )}
       <Section title={<>Your published SOPs <Count n={published.length} /></>} right={<div className="w-72"><SearchBox value={q} onChange={setQ} placeholder="Find a title, code or version" /></div>}>
         <div className="grid gap-4 md:grid-cols-2">
           {published.map((v) => {

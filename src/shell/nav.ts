@@ -3,6 +3,7 @@ import {
   MessageSquare, Settings2, ShieldCheck, ToggleLeft, UserPlus, Users, Activity, CalendarRange, Briefcase, User, Hammer,
   type LucideIcon,
 } from 'lucide-react'
+import { REVIEW_REQUIRED } from '@/lib/domain'
 import type { Portal, Tier } from '@/lib/types'
 
 export interface NavItem { to: string; label: string; icon: LucideIcon; need?: Tier; count?: 'cover' | 'reviews' | 'feedback' | 'join'; hidden?: boolean; group?: string }
@@ -34,7 +35,7 @@ export const NAV: Record<Portal, NavItem[]> = {
     { to: '/author', label: 'My SOPs', icon: FileText },
     { to: '/author/new', label: 'Create SOP', icon: FilePlus2 },
     { to: '/author/feedback', label: 'Feedback & requests', icon: MessageSquare, count: 'feedback' },
-    { to: '/author/reviews', label: 'Reviews & releases', icon: Gauge, count: 'reviews' },
+    ...(REVIEW_REQUIRED ? [{ to: '/author/reviews', label: 'Reviews & releases', icon: Gauge, count: 'reviews' as const }] : []),
     { to: '/author/use-results', label: 'Use & results', icon: LineChart, need: 'senior', group: 'More' },
     { to: '/author/platform', label: 'Platform foundation', icon: Settings2, need: 'admin', group: 'More' },
   ],

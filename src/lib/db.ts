@@ -8,7 +8,7 @@ import { useSession } from './session'
 import { setHotelTimeZone } from './time'
 import type { AttendanceMark, CoverItem, FeedbackLane, Notice, Priority, ReviewDecision, SopVersion, Task } from './types'
 
-export { APPROVALS_REQUIRED, proposeVersion } from './domain'
+export { APPROVALS_REQUIRED, REVIEW_REQUIRED, proposeVersion } from './domain'
 
 interface Connection { hotel: 'online' | 'offline' | 'connecting'; checkin: 'ok' | 'attention' }
 type Queued = { action: Action; at: string }

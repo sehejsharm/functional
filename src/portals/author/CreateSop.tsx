@@ -8,7 +8,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { z } from 'zod'
 import { SopSteps } from '@/components/SopSteps'
 import { Button, Drawer, PageHeader, STEP_ICONS, ShiftEventInterstitial, StepIcon, Tabs } from '@/components/ui'
-import { byId, proposeVersion, useDB } from '@/lib/db'
+import { byId, proposeVersion, REVIEW_REQUIRED, useDB } from '@/lib/db'
 import { parseSop, readPdfLines, textToLines, type ImportedSop } from '@/lib/sopImport'
 import type { SopVersion } from '@/lib/types'
 import { usePersona } from '@/shell/PortalShell'
@@ -88,7 +88,7 @@ export function CreateSop() {
     return saved
   }
   const onSave = handleSubmit(persist)
-  const onSubmitReview = handleSubmit((f) => { const s = persist(f); if (submitForReview(s.id)) nav('/author/reviews') })
+  const onSubmitReview = handleSubmit((f) => { const s = persist(f); if (submitForReview(s.id)) nav(REVIEW_REQUIRED ? '/author/reviews' : '/author') })
   const stage = !draft || draft.status === 'draft' || draft.status === 'changes_requested' ? 0 : draft.status === 'in_review' ? 1 : 2
   const proposed = draft ? proposeVersion({ ...draft, ...values, tags: [] } as SopVersion, base) : { label: '1.0', structural: true }
 
@@ -97,13 +97,13 @@ export function CreateSop() {
       <PageHeader eyebrow="Author" title={existing ? `${existing.code || 'Untitled'} · draft` : 'Create SOP'}
         right={<Button variant="light" onClick={() => setPreview(true)}><Eye size={16} /> Preview draft</Button>} />
       <ol className="flex items-center gap-2 text-sm" aria-label="Pipeline">
-        {['Draft', 'Review', 'Release'].map((s, i) => (
+        {(REVIEW_REQUIRED ? ['Draft', 'Review', 'Release'] : ['Draft', 'Publish']).map((s, i, all) => (
           <li key={s} className="flex items-center gap-2">
-            <span className={clsx('grid h-7 w-7 place-items-center rounded-full text-xs font-bold', i <= stage ? 'bg-gold-500 text-forest-950' : 'bg-white/10 text-sage-300')}>{i + 1}</span>
-            <span className={i === stage ? 'font-semibold text-white' : 'text-sage-300'}>{s}</span>{i < 2 && <span className="mx-1 h-px w-8 bg-white/15" />}
+            <span className={clsx('grid h-7 w-7 place-items-center rounded-full text-xs font-bold', i <= Math.min(stage, all.length - 1) ? 'bg-gold-500 text-forest-950' : 'bg-white/10 text-sage-300')}>{i + 1}</span>
+            <span className={i === Math.min(stage, all.length - 1) ? 'font-semibold text-white' : 'text-sage-300'}>{s}</span>{i < all.length - 1 && <span className="mx-1 h-px w-8 bg-white/15" />}
           </li>
         ))}
-        {draft && <li className="ml-auto text-xs text-sage-300">Releases as {proposed.label} · {base ? (proposed.structural ? 'structural change' : 'wording change') : 'first version'}</li>}
+        {draft && <li className="ml-auto text-xs text-sage-300">{REVIEW_REQUIRED ? 'Releases' : 'Publishes'} as {proposed.label} · {base ? (proposed.structural ? 'structural change' : 'wording change') : 'first version'}</li>}
       </ol>
 
       <fieldset disabled={readOnly} className="space-y-6">
@@ -179,7 +179,7 @@ export function CreateSop() {
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-10">
           <span className="text-sm text-sage-300">{readOnly ? `In ${draft!.status.replace('_', ' ')} — read only` : isDirty || !draft ? 'Not saved yet' : `Saved · ${new Date(draft.updatedAt).toLocaleTimeString()}`}</span>
           {!readOnly && <div className="flex gap-2">
-            <Button variant="ghost" onClick={onSubmitReview}>Send for review</Button>
+            <Button variant="ghost" onClick={onSubmitReview}>{REVIEW_REQUIRED ? 'Send for review' : 'Publish'}</Button>
             <Button variant="gold" onClick={onSave}>Save draft</Button>
           </div>}
         </div>

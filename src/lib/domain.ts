@@ -19,6 +19,8 @@ export const COLLECTIONS: Collection[] = ['jobRoles', 'people', 'sops', 'sopVers
 export interface Actor { personId: string; grants: { portal: Portal; tier: Tier }[] }
 
 export const APPROVALS_REQUIRED = 2
+/** Off for now: authors publish directly. Turn on to bring back the two-approval review step. */
+export const REVIEW_REQUIRED = false
 export const MAX_STEPS = 30
 export const MAX_TAGS = 20
 
@@ -114,6 +116,17 @@ export function apply(s0: State, actor: Actor, a: Action, now: string): { state:
   const version = (id: string) => s.sopVersions.find((v) => v.id === id) ?? fail('SOP version not found')
   const putVersion = (v: SopVersion) => { s.sopVersions = s.sopVersions.some((x) => x.id === v.id) ? s.sopVersions.map((x) => (x.id === v.id ? v : x)) : [...s.sopVersions, v] }
   let value: unknown
+  const publish = (versionId: string): string => {
+    const v = version(versionId)
+    const sop = s.sops.find((x) => x.id === v.sopId) ?? fail('SOP missing')
+    const current = s.sopVersions.find((x) => x.id === sop.currentVersionId)
+    const label = proposeVersion(v, current).label
+    // In-flight tasks keep their pinned sopVersionId; only new assignments pick this up.
+    s.sopVersions = s.sopVersions.map((x) => x.id === v.id ? { ...x, status: 'published', version: label, publishedAt: now, effectiveAt: now } : x.id === current?.id ? { ...x, status: 'superseded' } : x)
+    s.sops = s.sops.map((x) => (x.id === v.sopId ? { ...x, code: v.code, currentVersionId: v.id } : x))
+    log('sop.released', `${v.code} ${label}`)
+    return label
+  }
 
   switch (a.type) {
     // ── Employee work ─────────────────────────────────────────────
@@ -294,7 +307,9 @@ export function apply(s0: State, actor: Actor, a: Action, now: string): { state:
       const base = s.sopVersions.find((b) => b.id === v.baseVersionId)
       putVersion({ ...v, status: 'in_review', submittedAt: now, reviews: [], version: proposeVersion(v, base).label })
       if (!s.sops.some((x) => x.id === v.sopId)) s.sops = [...s.sops, { id: v.sopId, propertyId: P, code: v.code, currentVersionId: null }]
-      log('sop.submitted', `${v.code} ${v.version}`); break
+      log('sop.submitted', `${v.code} ${v.version}`)
+      if (!REVIEW_REQUIRED) value = publish(v.id)
+      break
     }
     case 'review': {
       need(auth, 'Reviewers need author access'); fresh([], a.id)
@@ -307,15 +322,9 @@ export function apply(s0: State, actor: Actor, a: Action, now: string): { state:
     }
     case 'release': {
       need(auth, 'Authors only'); const v = version(a.versionId)
-      need(v.status === 'in_review', 'Only versions in review can be released')
-      need(approvalsOf(v) >= APPROVALS_REQUIRED, `Needs ${APPROVALS_REQUIRED} independent approvals`)
-      const sop = s.sops.find((x) => x.id === v.sopId) ?? fail('SOP missing')
-      const current = s.sopVersions.find((x) => x.id === sop.currentVersionId)
-      const label = proposeVersion(v, current).label
-      // In-flight tasks keep their pinned sopVersionId; only new assignments pick this up.
-      s.sopVersions = s.sopVersions.map((x) => x.id === v.id ? { ...x, status: 'published', version: label, publishedAt: now, effectiveAt: now } : x.id === current?.id ? { ...x, status: 'superseded' } : x)
-      s.sops = s.sops.map((x) => (x.id === v.sopId ? { ...x, code: v.code, currentVersionId: v.id } : x))
-      value = label; log('sop.released', `${v.code} ${label}`); break
+      need(v.status === 'in_review' || (!REVIEW_REQUIRED && v.status === 'changes_requested'), 'Only submitted versions can be released')
+      if (REVIEW_REQUIRED) need(approvalsOf(v) >= APPROVALS_REQUIRED, `Needs ${APPROVALS_REQUIRED} independent approvals`)
+      value = publish(v.id); break
     }
     case 'addFeedback': {
       fresh(s.feedback, a.id); const v = version(a.sopVersionId)

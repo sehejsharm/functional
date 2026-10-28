@@ -16,7 +16,7 @@ const GROUPS: { title: string; screens: [string, string, boolean?][] }[] = [
     ['Join requests', '/manager/join-requests'], ['Employee SOPs', '/manager/sops'], ['Hotel SOP policy', '/manager/sop-policy'], ['Acknowledgment ledger', '/manager/acknowledgments', true],
   ] },
   { title: 'Author standards', screens: [
-    ['My SOPs', '/author'], ['Create SOP', '/author/new'], ['Feedback & requests', '/author/feedback'], ['Reviews & releases', '/author/reviews'],
+    ['My SOPs', '/author'], ['Create SOP', '/author/new'], ['Feedback & requests', '/author/feedback'],
     ['Use & results', '/author/use-results', true], ['Platform foundation', '/manager/platform', true],
   ] },
 ]
