@@ -180,6 +180,7 @@ function LogIncident({ open, onClose, onCreated, rooms, people }: { open: boolea
     const actor = me?.id ?? 'elena'
     const task = taskParam ? useDB.getState().tasks.find((t) => t.id === taskParam && t.roomId === f.roomId) : undefined
     const issue = useDB.getState().reportIssue(task?.id ?? null, actor, f.text.trim(), { category: f.category, severity: f.severity, title: f.title.trim(), roomId: f.roomId || undefined })
+    if (!issue) return
     if (f.assignee) useDB.getState().updateIssue(issue.id, actor, { assignedToId: f.assignee, status: 'in_progress', note: `Assigned to ${people.find((p) => p.id === f.assignee)?.name}` })
     toast.success('Incident logged', { description: `${f.title.trim()}${f.assignee ? ` · assigned to ${people.find((p) => p.id === f.assignee)?.name}` : ''}` })
     onCreated(issue.id)

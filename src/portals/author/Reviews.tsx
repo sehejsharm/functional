@@ -17,7 +17,7 @@ import { approvalCount, approversOf, currentOf, pinnedTasks, quorumMet, sinceDay
 import { ApprovalMeter, DiffView, PersonChip, VersionStatusBadge, VersionTag, useSopCommands } from './components'
 import type { StepDiff } from './diff'
 
-/** Demo reviewers. In production each reviewer signs in with their own account. */
+/** Demo reviewers (the shared demo lets you review as either). Live, each reviewer signs in as themselves. */
 const REVIEWERS = ['marco', 'leah']
 type TabId = 'awaiting' | 'changes' | 'released' | 'rejected'
 
@@ -93,8 +93,10 @@ export function VersionReview() {
   const me = person?.id ?? 'amina'
   const v = byId(db.sopVersions, id)
   useBreadcrumb(v ? `${v.code} ${v.version}` : null)
+  const demo = db.mode === 'demo'
   const firstPending = v ? REVIEWERS.find((r) => !v.reviews.some((x) => x.reviewerId === r && !x.stepId && x.decision === 'approve')) : undefined
-  const [reviewer, setReviewer] = useState(firstPending ?? REVIEWERS[0])
+  const [demoReviewer, setReviewer] = useState(firstPending ?? REVIEWERS[0])
+  const reviewer = demo ? demoReviewer : me
   const [comment, setComment] = useState('')
   const [releaseOpen, setReleaseOpen] = useState(false)
   const [releasedAs, setReleasedAs] = useState<string | null>(null)
@@ -120,6 +122,9 @@ export function VersionReview() {
   const name = (pid?: string) => byId(db.people, pid)?.name ?? 'Someone'
   const decisionOf = (pid: string) => [...v.reviews].reverse().find((r) => r.reviewerId === pid && !r.stepId)
   const mine = decisionOf(reviewer)
+  // Who has reviewed: the demo's two reviewers, or (live) every other author who has given a decision.
+  const reviewers = demo ? REVIEWERS : [...new Set(v.reviews.filter((r) => !r.stepId && r.reviewerId !== v.authorId).map((r) => r.reviewerId))]
+  const awaiting = demo ? 0 : Math.max(0, APPROVALS_REQUIRED - reviewers.filter((r) => decisionOf(r)?.decision === 'approve').length)
 
   const decide = async (decision: ReviewDecision['decision']) => {
     if (isAuthor || !open) return
@@ -141,7 +146,7 @@ export function VersionReview() {
       const c = approvalCount(after)
       toast.success(`Approved by ${name(reviewer)}`, { description: c >= APPROVALS_REQUIRED ? 'Both approvals are in — this version is ready to release.' : `${c} of ${APPROVALS_REQUIRED} approvals. One more independent reviewer is needed.` })
       const other = REVIEWERS.find((r) => r !== reviewer && !decisionOf(r))
-      if (other && c < APPROVALS_REQUIRED) setReviewer(other)
+      if (demo && other && c < APPROVALS_REQUIRED) setReviewer(other)
     } else if (decision === 'request_changes') toast.warning('Changes requested', { description: `${v.code} ${v.version} is back with ${name(v.authorId)}.` })
     else toast.error(`${v.code} ${v.version} rejected`, { description: 'It can’t be released. The author can start a new revision.' })
   }
@@ -235,7 +240,7 @@ export function VersionReview() {
             <div className="space-y-4 p-5">
               <ProgressBar value={n} max={APPROVALS_REQUIRED} tone={n >= APPROVALS_REQUIRED ? 'success' : 'brand'} />
               <ul className="space-y-3">
-                {REVIEWERS.map((rid) => {
+                {reviewers.map((rid) => {
                   const d = decisionOf(rid)
                   return (
                     <li key={rid} className="flex items-start gap-3">
@@ -249,6 +254,12 @@ export function VersionReview() {
                     </li>
                   )
                 })}
+                {Array.from({ length: awaiting }, (_, i) => (
+                  <li key={`wait-${i}`} className="flex items-center gap-3">
+                    <span className="grid h-[30px] w-[30px] place-items-center rounded-full border border-dashed border-line-strong text-muted"><UserCheck size={14} /></span>
+                    <div className="text-sm text-muted">Waiting for another reviewer</div>
+                  </li>
+                ))}
                 <li className="flex items-start gap-3 rounded-cell bg-surface-2 p-2.5">
                   <Avatar name={name(v.authorId)} size={30} />
                   <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="text-sm font-medium text-ink">{name(v.authorId)}</span><Badge>Author</Badge></div>
@@ -269,17 +280,17 @@ export function VersionReview() {
           )}
           {open && (
             <Card>
-              <CardHeader icon={ShieldCheck} title="Your decision" description="Demo: choose who is reviewing. In production each reviewer signs in as themselves." />
+              <CardHeader icon={ShieldCheck} title="Your decision" description={demo ? 'Demo: choose who is reviewing. On the live server each reviewer signs in as themselves.' : `Reviewing as ${name(me)}.`} />
               <div className="space-y-4 p-5">
-                <label className="block"><span className="label">Review as</span>
+                {demo && <label className="block"><span className="label">Review as</span>
                   <Select value={reviewer} onChange={(e) => setReviewer(e.target.value)}>
                     {REVIEWERS.map((rid) => <option key={rid} value={rid}>{name(rid)} · {byId(db.people, rid)?.title}</option>)}
                     <option value={v.authorId}>{name(v.authorId)} · author of this version</option>
-                  </Select></label>
+                  </Select></label>}
                 {isAuthor ? (
                   <div role="note" className="flex gap-2.5 rounded-cell border border-amber/30 bg-amber/[0.07] p-3 text-sm text-ink">
                     <CircleSlash size={16} className="mt-0.5 shrink-0 text-amber" />
-                    <span><b>{name(v.authorId)} wrote this version, so their approval doesn’t count.</b> Two people other than the author must approve before it can be released.</span>
+                    <span><b>{demo ? `${name(v.authorId)} wrote this version` : 'You wrote this version'}, so {demo ? 'their' : 'your'} approval doesn’t count.</b> Two people other than the author must approve before it can be released.</span>
                   </div>
                 ) : <>
                   {mine && <p className="text-xs text-muted">{name(reviewer)} already {mine.decision === 'approve' ? 'approved' : mine.decision === 'reject' ? 'rejected' : 'requested changes'} {relTime(mine.at)}. A new decision replaces it.</p>}

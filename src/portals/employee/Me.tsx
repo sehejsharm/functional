@@ -1,18 +1,19 @@
 import clsx from 'clsx'
-import { BedDouble, BookOpenCheck, CalendarCheck2, Check, ChevronRight, Clock, Languages, Mail, Megaphone, Phone, Plus, Timer, TrendingUp } from 'lucide-react'
-import { useMemo } from 'react'
+import { BedDouble, BookOpenCheck, CalendarCheck2, CalendarOff, Check, ChevronRight, Clock, Languages, Mail, Megaphone, Phone, Plus, Send, Timer, TrendingUp } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Avatar, Badge, Card, CardHeader, EmptyState, StatCard, Tabs } from '@/components/ui'
+import { Avatar, Badge, Button, Card, CardHeader, EmptyState, Field, Input, Select, StatCard, Tabs } from '@/components/ui'
 import { byId, useDB } from '@/lib/db'
 import { useNow } from '@/lib/hooks'
-import { fDateTime, fLongDate, fTime, hotelDateKey, minutesBetween } from '@/lib/time'
+import { fDate, fDateTime, fLongDate, fTime, hotelDateKey, minutesBetween } from '@/lib/time'
+import { toast } from '@/lib/toast'
 import type { AttendanceMark, Person } from '@/lib/types'
 import { usePersona } from '@/shell/PortalShell'
 import { NoticeCard } from './components'
 import { fDateYear, tenure } from './model'
 
-type Tab = 'overview' | 'notices' | 'acks' | 'checkins'
-const TABS: Tab[] = ['overview', 'notices', 'acks', 'checkins']
+type Tab = 'overview' | 'notices' | 'acks' | 'checkins' | 'timeoff'
+const TABS: Tab[] = ['overview', 'notices', 'acks', 'checkins', 'timeoff']
 const DAY = 86_400_000
 
 const MARK: Record<AttendanceMark, { label: string; tone: 'success' | 'gold' | 'warning'; icon: typeof Check; cell: string }> = {
@@ -42,6 +43,7 @@ export function EmployeeMe() {
         { id: 'notices', label: 'Notices', count: unread || undefined },
         { id: 'acks', label: 'Acknowledgments' },
         { id: 'checkins', label: 'Check-in log' },
+        { id: 'timeoff', label: 'Time off' },
       ]} />
       {tab === 'overview' && <Overview person={person} />}
       {tab === 'notices' && (
@@ -56,6 +58,7 @@ export function EmployeeMe() {
       )}
       {tab === 'acks' && <Acknowledgments person={person} />}
       {tab === 'checkins' && <CheckinLog person={person} />}
+      {tab === 'timeoff' && <TimeOff person={person} />}
     </div>
   )
 }
@@ -250,7 +253,7 @@ function Acknowledgments({ person }: { person: Person }) {
 function CheckinLog({ person }: { person: Person }) {
   const attendance = useDB((s) => s.attendance)
   const conn = useDB((s) => s.connection)
-  const queued = useDB((s) => s.outbox.filter((o) => o.kind === 'checkin'))
+  const queued = useDB((s) => s.outbox.filter((o) => o.action.type === 'checkIn'))
   const rows = attendance.filter((a) => a.personId === person.id).sort((a, b) => b.date.localeCompare(a.date))
   const counts = { checkin: rows.filter((r) => r.mark === 'checkin').length, extra: rows.filter((r) => r.mark === 'extra').length, pending: rows.filter((r) => r.mark === 'pending').length }
   return (
@@ -288,6 +291,53 @@ function CheckinLog({ person }: { person: Person }) {
             </table>
           </>
         ) : <EmptyState icon={CalendarCheck2} title="No check-ins yet" description="Your check-ins appear here each day you check in on My work." />}
+      </Card>
+    </div>
+  )
+}
+
+/** Ask for a day off from one of your shifts; your manager approves or declines it in Shift cover. */
+function TimeOff({ person }: { person: Person }) {
+  const shifts = useDB((s) => s.shifts)
+  const cover = useDB((s) => s.cover)
+  const mineShifts = shifts.filter((s) => (s.rosterIds ?? s.memberIds).includes(person.id))
+  const [shiftId, setShiftId] = useState(mineShifts[0]?.id ?? '')
+  const [date, setDate] = useState('')
+  const [note, setNote] = useState('')
+  const today = hotelDateKey()
+  const mine = cover.filter((c) => c.personId === person.id && c.kind === 'time_off').sort((a, b) => b.date.localeCompare(a.date))
+  const taken = mine.some((c) => c.date === date && c.shiftId === shiftId && c.status !== 'declined')
+  const ask = () => {
+    const before = useDB.getState().cover.length
+    useDB.getState().requestTimeOff(shiftId, date, note.trim())
+    if (useDB.getState().cover.length > before) { toast.success('Request sent', { description: `${fDate(`${date}T12:00:00Z`)} · your manager decides in Shift cover.` }); setDate(''); setNote('') }
+  }
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader icon={CalendarOff} title="Ask for time off" description="Your manager sees it straight away and arranges cover." />
+        {!mineShifts.length ? <EmptyState compact title="You are not on a shift roster yet" description="Ask your manager to add you to a shift first." /> : (
+          <div className="grid gap-3 p-4 sm:grid-cols-[1fr_1fr] sm:p-5">
+            <Field label="Shift" htmlFor="to-shift"><Select id="to-shift" value={shiftId} onChange={(e) => setShiftId(e.target.value)}>{mineShifts.map((s) => <option key={s.id} value={s.id}>{s.name}{s.startTime ? ` · ${s.startTime}–${s.endTime}` : ''}</option>)}</Select></Field>
+            <Field label="Date" htmlFor="to-date" error={taken ? 'You already asked for this day.' : undefined}><Input id="to-date" type="date" min={today} value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+            <Field label="Reason" htmlFor="to-note" hint="Optional. Only your managers see it." className="sm:col-span-2"><Input id="to-note" value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Family wedding" /></Field>
+            <div className="sm:col-span-2"><Button variant="primary" icon={Send} disabled={!shiftId || !date || date < today || taken} onClick={ask}>Send request</Button></div>
+          </div>
+        )}
+      </Card>
+      <Card className="overflow-hidden">
+        <CardHeader title="Your requests" description={mine.length ? `${mine.length} request${mine.length === 1 ? '' : 's'}` : undefined} />
+        {!mine.length ? <EmptyState compact icon={CalendarOff} title="No requests yet" description="Requests you send appear here with your manager’s decision." /> : (
+          <ul className="divide-y divide-line">
+            {mine.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+                <div className="min-w-0"><div className="text-sm font-medium text-ink">{fLongDate(`${c.date}T12:00:00Z`)}</div>
+                  <div className="truncate text-xs text-muted">{byId(shifts, c.shiftId)?.name ?? 'Shift'}{c.note ? ` · ${c.note}` : ''}</div></div>
+                <Badge tone={c.status === 'approved' ? 'success' : c.status === 'declined' ? 'danger' : 'warning'} dot>{c.status === 'approved' ? 'Approved' : c.status === 'declined' ? 'Declined' : 'Waiting'}</Badge>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
     </div>
   )

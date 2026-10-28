@@ -282,6 +282,7 @@ export function useSopCommands() {
     me,
     revise: async (sopId: string) => {
       const r = startRevision(sopId, me)
+      if (!r) return
       if ('blocked' in r) return blockedByReview(r.blocked)
       if (r.reused) toast.info('You already have a draft of this SOP', { description: `Opened ${r.version.code} ${r.version.version} instead of starting another revision.` })
       else toast.success(`Revision ${r.version.version} started`, { description: `${r.version.code} · a copy of the current version. Staff keep using it until this is released.` })

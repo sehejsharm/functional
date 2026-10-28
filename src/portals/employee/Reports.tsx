@@ -37,6 +37,7 @@ export function EmployeeReports() {
   if (!person) return null
   const submit = (d: IssueDraft) => {
     const issue = useDB.getState().reportIssue(null, person.id, d.details || d.title, { category: d.category, severity: d.severity, title: d.title, roomId: d.roomId || undefined })
+    if (!issue) return
     setParams((p) => { const n = new URLSearchParams(p); n.delete('new'); n.set('id', issue.id); return n }, { replace: true })
     setFilter('open')
     toast.success('Issue reported', { description: `${issue.title} · your supervisor sees it now.` })

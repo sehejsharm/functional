@@ -130,7 +130,8 @@ export function TaskDetail() {
 
         <StepList steps={v.steps} version={v.version} done={task.doneStepIds} photos={task.photoStepIds} interactive={mine && task.status === 'in_progress'} mode={task.mode}
           hideLockHint={task.status !== 'scheduled'}
-          onToggle={(sid) => useDB.getState().toggleStep(task.id, sid)} onPhoto={(sid) => { useDB.getState().attachPhoto(task.id, sid); toast.success('Photo attached', { description: `Step ${v.steps.findIndex((s) => s.id === sid) + 1} · Room ${room?.number}` }) }} />
+          onToggle={(sid) => useDB.getState().toggleStep(task.id, sid)} photoKeys={task.photoKeys}
+          onPhoto={(sid, file) => { void useDB.getState().attachPhoto(task.id, sid, file).then(() => { if (useDB.getState().tasks.find((t) => t.id === task.id)?.photoStepIds.includes(sid)) toast.success('Photo attached', { description: `Step ${v.steps.findIndex((s) => s.id === sid) + 1} · Room ${room?.number}` }) }) }} />
 
         {mine && phase !== 'cancelled' && <ActionBar task={task} v={v} person={person} roomNumber={room?.number} />}
 
@@ -191,7 +192,7 @@ function ActionBar({ task, v, person, roomNumber }: { task: Task; v: SopVersion;
   const now = useNow(5000)
   const nav = useNavigate()
   const offline = useDB((s) => s.connection.hotel === 'offline')
-  const outbox = useDB((s) => s.outbox.filter((o) => o.taskId === task.id).length)
+  const outbox = useDB((s) => s.outbox.filter((o) => 'taskId' in o.action && o.action.taskId === task.id).length)
   const verifier = useDB((s) => byId(s.people, task.verifiedById))
   const { all } = useMyTasks(person.id)
   const phase = taskPhase(task, now)
@@ -368,6 +369,7 @@ function ReportSheet({ open, onClose, task, person }: { open: boolean; onClose: 
   const nav = useNavigate()
   const submit = (d: IssueDraft) => {
     const issue = useDB.getState().reportIssue(task.id, person.id, d.details || d.title, { category: d.category, severity: d.severity, title: d.title })
+    if (!issue) return
     onClose()
     toast.success('Issue reported', {
       description: `Room ${room?.number} · your supervisor sees it now. The room stays open.`,

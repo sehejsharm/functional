@@ -1,415 +1,390 @@
-// Local demo backend. Mirrors the Firestore collections one-to-one (see firestore.rules) and is
-// persisted to localStorage so every portal sees the same live data; components subscribe to it
-// the way they would to Firestore snapshot listeners.
+// Client mirror of this property's data. Live: kept in sync with the Cloudflare Durable Object over the API and a
+// WebSocket. Demo (no API configured): the same rules run against a hotel kept in this browser (demo.ts).
+// Writes run the shared domain rules locally first (instant UI), then go to the hotel, which is the authority.
+// Writes made while the hotel connection is down wait in an outbox and replay in order.
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
-import { buildSeed, type Seed } from './seed'
-import type { AttendanceMark, CoverItem, FeedbackLane, Issue, IssueCategory, IssueSeverity, IssueStatus, Notice, Priority, ReviewDecision, SopStep, SopVersion, Task } from './types'
-import { hotelDateKey, iso } from './time'
+import { api, ApiError, DEMO, demoPhotos, OfflineError, uid, wsUrl } from './api'
+import { apply, assignBlocker as blockerFor, DomainError, emptyState, normalizeState, rosterOn, type Action, type Actor, type State } from './domain'
+import { demoHub } from './demo'
+import { useSession } from './session'
+import { hotelDateKey, iso, setHotelTimeZone, shiftWindow } from './time'
+import { toast } from './toast'
+import type {
+  AttendanceMark, CoverItem, FeedbackLane, Issue, IssueCategory, IssueSeverity, IssueStatus, Notice, Priority, ReviewDecision, SopVersion, Task,
+} from './types'
 
-/** Boot with the device's real network state (the app can open offline from the service-worker cache). */
-const initialConnection = (): Connection => ({ hotel: typeof navigator !== 'undefined' && navigator.onLine === false ? 'offline' : 'online', checkin: 'ok' })
+export { APPROVALS_REQUIRED, proposeVersion } from './domain'
 
-const uid = (p: string) => `${p}-${Math.random().toString(36).slice(2, 9)}`
-const nowIso = () => iso(Date.now())
+interface Connection { hotel: 'online' | 'offline' | 'connecting'; checkin: 'ok' | 'attention' }
+/** `as`: in demo mode, the staff member who made the change (each portal acts as a different person). */
+type Queued = { action: Action; at: string; as?: string }
+type Assign = Pick<Task, 'shiftId' | 'personId' | 'roomId' | 'start' | 'end' | 'priority' | 'assignedById'> & { sopId: string; notes?: string }
+type Result = { ok: true; value: unknown } | { ok: false; error: string }
 
-/** Queued writes made while the hotel connection is down; flushed on reconnect. */
-type OutboxItem = { id: string; kind: 'step' | 'checkin'; taskId?: string; stepId?: string; personId?: string; mark?: AttendanceMark; at: string }
-
-interface Connection { hotel: 'online' | 'offline'; checkin: 'ok' | 'attention' }
-
-export const APPROVALS_REQUIRED = 2
-
-interface Actions {
-  reset: () => void
+interface Store extends State {
+  /** 'demo' runs on this browser's own copy of the hotel; 'live' on the Cloudflare server. */
+  mode: 'demo' | 'live'
+  ready: boolean; rev: number; connection: Connection; outbox: Queued[]
+  /** Last error from a rejected write. */
+  error: string | null
+  clearError: () => void
+  load: () => Promise<void>
+  /** Apply locally, then send. `as` names the acting person in demo mode (ignored live: the server knows who you are). */
+  dispatch: (action: Action, as?: string, opts?: { quiet?: boolean }) => Result
+  /** Apply and wait for the hotel to accept it (throws with the reason if not). */
+  send: (action: Action) => Promise<void>
+  /** Reconnect and resend anything queued. Resolves once the hotel has answered (or not). */
+  retryConnection: () => Promise<void>
+  /** Demo controls: simulate the hotel system or the check-in service failing. Live: reconnects. */
   setConnection: (c: Partial<Connection>) => void
-  flushOutbox: () => void
-  log: (actorId: string, action: string, detail: string) => void
+  flushOutbox: () => Promise<void>
+  /** Demo only: start the shared demo hotel again from today's sample data. */
+  reset: () => void
+  log: (actorId: string, event: string, detail: string) => void
 
   startTask: (taskId: string) => void
   toggleStep: (taskId: string, stepId: string) => void
-  attachPhoto: (taskId: string, stepId: string) => void
+  attachPhoto: (taskId: string, stepId: string, file?: File) => Promise<void>
   requestVerification: (taskId: string) => void
-  verifyTask: (taskId: string, actorId: string) => void
-  markUrgentSeen: (taskId: string) => void
-  /** Raises an incident (from a room or free-standing). Returns the created issue. */
-  reportIssue: (taskId: string | null, personId: string, text: string, o?: { category?: IssueCategory; severity?: IssueSeverity; title?: string; roomId?: string }) => Issue
-  updateIssue: (id: string, actorId: string, patch: { status?: IssueStatus; assignedToId?: string | null; note?: string; severity?: IssueSeverity }) => void
-  /** Verifier sends a room back to the employee with a reason. */
+  verifyTask: (taskId: string, actorId?: string) => boolean
   returnTask: (taskId: string, actorId: string, note: string) => boolean
   cancelTask: (taskId: string, actorId: string, reason: string) => boolean
-  /** Moves a not-yet-finished room to another person; progress is kept. */
   reassignTask: (taskId: string, personId: string, actorId: string) => boolean
+  setTaskPriority: (taskId: string, priority: Priority, actorId: string) => boolean
+  endUrgent: (taskId: string, reason: string) => void
+  markUrgentSeen: (taskId: string) => void
+  reportIssue: (taskId: string | null, personId: string, text: string, o?: { category?: IssueCategory; severity?: IssueSeverity; title?: string; roomId?: string }) => Issue | null
+  updateIssue: (id: string, actorId: string, patch: { status?: IssueStatus; assignedToId?: string | null; note?: string; severity?: IssueSeverity }) => boolean
+  resolveIssue: (issueId: string) => void
   checkIn: (personId: string, mark?: AttendanceMark) => void
   endShift: (personId: string, early: boolean) => void
-
+  requestTimeOff: (shiftId: string, date: string, note: string) => void
   openRef: (personId: string, kind: 'sop' | 'notice', refId: string) => void
   acknowledge: (personId: string, kind: 'sop' | 'notice', refId: string, reply?: string) => void
 
-  assignTask: (t: Pick<Task, 'shiftId' | 'personId' | 'roomId' | 'start' | 'end' | 'priority' | 'assignedById'> & { sopId: string; notes?: string }) => Task | null
+  assignTask: (t: Assign) => Task | null
   /** Why a room can't take this assignment right now, or null when it can. */
-  assignBlocker: (t: { sopId: string; roomId: string; shiftId: string; start: string }) => string | null
-  bulkAssign: (items: (Pick<Task, 'shiftId' | 'personId' | 'roomId' | 'start' | 'end' | 'priority' | 'assignedById'> & { sopId: string; notes?: string })[]) => { created: Task[]; skipped: { roomId: string; reason: string }[] }
+  assignBlocker: (t: { sopId: string; roomId: string; shiftId: string; start: string; end?: string }) => string | null
+  bulkAssign: (items: Assign[]) => { created: Task[]; skipped: { roomId: string; reason: string }[] }
   setTaskMode: (taskId: string, mode: Task['mode']) => void
-  decideCover: (id: string, status: CoverItem['status']) => void
-  approveBackup: (o: { shiftId: string; date: string; personId: string; backupId: string; actorId?: string; coverId?: string }) => void
-  sendNotice: (n: Omit<Notice, 'id' | 'propertyId' | 'sentAt' | 'sample'> & { sentById: string }) => void
-  decideJoin: (id: string, status: 'approved' | 'declined') => void
+  decideCover: (id: string, status: CoverItem['status']) => boolean
+  approveBackup: (o: { shiftId: string; date: string; personId: string; backupId: string; actorId?: string; coverId?: string }) => boolean
+  saveNoticeTemplate: (o: { title: string; body: string; replyNeeded: boolean }) => void
+  sendNotice: (n: Omit<Notice, 'id' | 'propertyId' | 'sentAt' | 'sample'> & { sentById: string }) => boolean
+  decideJoin: (id: string, status: 'approved' | 'declined') => boolean
 
-  saveDraft: (v: SopVersion) => SopVersion
-  newDraftFrom: (versionId: string | null, authorId: string, seedNote?: { feedbackId: string; text: string; stepId?: string }) => SopVersion
-  deleteDraft: (versionId: string) => void
-  submitForReview: (versionId: string) => void
-  review: (versionId: string, d: Omit<ReviewDecision, 'id' | 'at'>) => void
+  saveDraft: (v: SopVersion, o?: { department?: string; created?: boolean }) => SopVersion
+  newDraftFrom: (versionId: string | null, authorId: string, seedNote?: { feedbackId: string; text: string; stepId?: string }, sopId?: string) => SopVersion | null
+  deleteDraft: (versionId: string) => boolean
+  submitForReview: (versionId: string) => boolean
+  review: (versionId: string, d: Omit<ReviewDecision, 'id' | 'at'>) => boolean
   release: (versionId: string, actorId: string) => string | null
-  addFeedback: (lane: FeedbackLane, sopVersionId: string, fromId: string, text: string, o?: { stepId?: string; rating?: number }) => void
-  resolveFeedback: (id: string) => void
   retireSop: (sopId: string, actorId: string) => void
   restoreSop: (sopId: string, actorId: string) => void
+  addFeedback: (lane: FeedbackLane, sopVersionId: string, fromId: string, text: string, o?: { stepId?: string; rating?: number }) => void
+  resolveFeedback: (id: string, reopen?: boolean) => void
+}
+export type DB = Store
+
+const PLACEHOLDER = emptyState({ id: '', name: '', city: '', timeZone: 'Asia/Colombo', codeScheme: '', defaultTimeTargetMin: 15 })
+
+const outboxKey = () => `mise-outbox-${DEMO ? 'demo' : useSession.getState().account?.id ?? 'anon'}`
+const loadOutbox = (): Queued[] => { try { return JSON.parse(localStorage.getItem(outboxKey()) ?? '[]') } catch { return [] } }
+const saveOutbox = (q: Queued[]) => { try { localStorage.setItem(outboxKey(), JSON.stringify(q)) } catch { /* storage full or blocked */ } }
+
+/** Who is acting. Live: the signed-in person. Demo: the person this portal is shown as (or `as`), with the demo tier. */
+function actor(as?: string): Actor {
+  const s = useSession.getState()
+  const grants = s.account?.grants ?? []
+  if (!DEMO) return { personId: s.account?.personId ?? '', grants: grants.map(({ portal, tier }) => ({ portal, tier })) }
+  const portal = s.portal ?? 'employee'
+  const mine = grants.find((g) => g.portal === portal)?.personId
+  const personId = as ?? (portal === 'employee' ? s.demoEmployeeId ?? mine : mine) ?? ''
+  return { personId, grants: grants.map(({ portal: p, tier }) => ({ portal: p, tier: p === 'employee' ? tier : s.demoTier ?? tier })) }
 }
 
-export type DB = Seed & { connection: Connection; outbox: OutboxItem[]; seededFor: string } & Actions
-
-export function proposeVersion(draft: SopVersion, base: SopVersion | undefined): { label: string; structural: boolean } {
-  if (!base) return { label: '1.0', structural: true }
-  const [maj, min] = base.version.split('.').map(Number)
-  const structural =
-    draft.steps.length !== base.steps.length ||
-    draft.timeTargetMin !== base.timeTargetMin ||
-    draft.steps.some((s, i) => s.requireCheck !== base.steps[i]?.requireCheck)
-  return { label: structural ? `${maj + 1}.0` : `${maj}.${min + 1}`, structural }
+/**
+ * Screens get each shift as its concrete instance for the current hotel day (ISO start/end), with memberIds being who is
+ * on it that day (approved backups swapped in). The stored recurring times and standing roster ride along for editing.
+ */
+function materialize(s: State, now = Date.now()): State {
+  return {
+    ...s,
+    shifts: s.shifts.map((sh) => {
+      const w = shiftWindow(sh, now)
+      return { ...sh, start: iso(w.start), end: iso(w.end), startTime: sh.start, endTime: sh.end, rosterIds: sh.memberIds, memberIds: rosterOn(s, sh.id, hotelDateKey(w.start)) }
+    }),
+  }
 }
 
-export const useDB = create<DB>()(
-  persist(
-    (set, get) => {
-      const patchTask = (id: string, fn: (t: Task) => Partial<Task>) =>
-        set((s) => ({ tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...fn(t) } : t)) }))
-      const offline = () => get().connection.hotel === 'offline'
+// ── Transports: where the authoritative copy lives ─────────────────────────────
+interface Transport {
+  fetch: () => Promise<{ rev: number; state: State }>
+  act: (action: Action, as?: string) => Promise<unknown>
+  connect: (on: { changed: (rev: number) => void; status: (h: Connection['hotel']) => void }) => void
+}
 
-      return {
-        ...buildSeed(),
-        connection: initialConnection(),
-        outbox: [],
-        seededFor: hotelDateKey(),
+let ws: WebSocket | null = null
+let wsRetry = 0
+let wsTimer: ReturnType<typeof setTimeout> | undefined
 
-        reset: () => set({ ...buildSeed(), connection: initialConnection(), outbox: [], seededFor: hotelDateKey() }),
-        setConnection: (c) => {
-          set((s) => ({ connection: { ...s.connection, ...c } }))
-          if (c.hotel === 'online') get().flushOutbox()
-        },
-        flushOutbox: () => {
-          // Step ticks were applied optimistically; queued check-ins are recorded now with the time they were tapped.
-          const queued = get().outbox.filter((o) => o.kind === 'checkin' && o.personId)
-          set((s) => {
-            let attendance = s.attendance
-            for (const o of queued) {
-              const date = hotelDateKey(o.at)
-              attendance = [...attendance.filter((a) => !(a.personId === o.personId && a.date === date)),
-                { id: uid('at'), propertyId: s.properties[0].id, personId: o.personId!, date, mark: o.mark ?? 'checkin', at: o.at }]
-            }
-            return { outbox: [], attendance, ...(queued.length ? { connection: { ...s.connection, checkin: 'ok' as const } } : {}) }
-          })
-          queued.forEach((o) => get().log(o.personId!, 'attendance.checkin', `${hotelDateKey(o.at)} (synced after offline)`))
-        },
-        log: (actorId, action, detail) =>
-          set((s) => ({ audit: [{ id: uid('au'), propertyId: s.properties[0].id, actorId, action, detail, at: nowIso() }, ...s.audit] })),
+const live: Transport = {
+  fetch: () => api<{ rev: number; state: State }>('/state'),
+  act: async (action) => (await api<{ value?: unknown }>('/action', { method: 'POST', json: { action } })).value,
+  connect: (on) => {
+    const token = useSession.getState().token
+    if (!token || typeof WebSocket === 'undefined') return
+    clearTimeout(wsTimer)
+    try { ws?.close() } catch { /* ignore */ }
+    on.status('connecting')
+    const sock = new WebSocket(wsUrl(token))
+    ws = sock
+    const ping = setInterval(() => { if (sock.readyState === WebSocket.OPEN) sock.send('ping') }, 25_000)
+    sock.onopen = () => { wsRetry = 0; on.status('online') }
+    sock.onmessage = (ev) => {
+      if (ev.data === 'pong') return
+      try { const m = JSON.parse(ev.data); if (m.type === 'changed' || m.type === 'hello') on.changed(m.rev) } catch { /* ignore */ }
+    }
+    sock.onclose = () => {
+      clearInterval(ping)
+      if (ws !== sock) return
+      on.status('offline')
+      if (!useSession.getState().token) return
+      wsTimer = setTimeout(() => live.connect(on), Math.min(30_000, 1000 * 2 ** wsRetry++))
+    }
+  },
+}
 
-        startTask: (id) => {
-          if (get().tasks.find((x) => x.id === id)?.status !== 'scheduled') return
-          patchTask(id, () => ({ status: 'in_progress', startedAt: nowIso() }))
-          const t = get().tasks.find((x) => x.id === id)
-          if (t) get().log(t.personId, 'task.started', id)
-        },
-        toggleStep: (id, stepId) => {
-          if (get().tasks.find((x) => x.id === id)?.status !== 'in_progress') return
-          // Optimistic: the tick lands immediately; if offline it is also queued for sync.
-          patchTask(id, (t) => ({
-            doneStepIds: t.doneStepIds.includes(stepId) ? t.doneStepIds.filter((x) => x !== stepId) : [...t.doneStepIds, stepId],
-          }))
-          if (offline()) set((s) => ({ outbox: [...s.outbox, { id: uid('ob'), kind: 'step', taskId: id, stepId, at: nowIso() }] }))
-        },
-        attachPhoto: (id, stepId) => patchTask(id, (t) => ({ photoStepIds: [...new Set([...t.photoStepIds, stepId])] })),
-        requestVerification: (id) => {
-          const t = get().tasks.find((x) => x.id === id)
-          const v = t && get().sopVersions.find((x) => x.id === t.sopVersionId)
-          if (!t || !v || t.status !== 'in_progress') return
-          const required = t.mode === 'standard' ? v.steps.filter((s, i) => s.requireCheck || i === v.steps.length - 1) : v.steps
-          if (!required.every((s) => t.doneStepIds.includes(s.id))) return
-          // Only SOPs with recorded checks need an independent verifier; the rest finish here.
-          if (v.steps.some((s) => s.requireCheck)) {
-            patchTask(id, () => ({ status: 'awaiting_verification', completedAt: nowIso(), returned: undefined }))
-            get().log(t.personId, 'task.verification_requested', id)
-          } else {
-            patchTask(id, () => ({ status: 'done', completedAt: nowIso(), returned: undefined }))
-            get().log(t.personId, 'task.completed', id)
-          }
-        },
-        verifyTask: (id, actorId) => {
-          const t = get().tasks.find((x) => x.id === id)
-          if (!t || t.status !== 'awaiting_verification' || t.personId === actorId) return
-          patchTask(id, (x) => ({ status: 'done', completedAt: x.completedAt ?? nowIso(), verifiedById: actorId, verifiedAt: nowIso() }))
-          get().log(actorId, 'task.verified', id)
-        },
-        markUrgentSeen: (id) => patchTask(id, (t) => ({ urgentEnded: t.urgentEnded && { ...t.urgentEnded, seen: true } })),
-        reportIssue: (taskId, personId, text, o = {}) => {
-          const t = taskId ? get().tasks.find((x) => x.id === taskId) : undefined
-          const at = nowIso()
-          const issue: Issue = {
-            id: uid('is'), propertyId: get().properties[0].id, taskId: taskId ?? undefined, roomId: o.roomId ?? t?.roomId, reportedById: personId,
-            category: o.category ?? 'other', severity: o.severity ?? 'medium', title: (o.title ?? text).slice(0, 80), text,
-            status: 'open', at, updates: [{ at, byId: personId, text: 'Reported', status: 'open' }],
-          }
-          set((s) => ({ issues: [issue, ...s.issues] }))
-          get().log(personId, 'issue.reported', `${issue.title}${t ? ` · ${taskId}` : ''}`)
-          return issue
-        },
-        updateIssue: (id, actorId, { status, assignedToId, note, severity }) => {
-          const at = nowIso()
-          set((s) => ({
-            issues: s.issues.map((i) => i.id !== id ? i : {
-              ...i, ...(status ? { status } : {}), ...(severity ? { severity } : {}),
-              ...(assignedToId !== undefined ? { assignedToId: assignedToId ?? undefined } : {}),
-              ...(status === 'resolved' ? { resolvedAt: at, resolvedById: actorId } : status ? { resolvedAt: undefined, resolvedById: undefined } : {}),
-              updates: [...i.updates, { at, byId: actorId, text: note || (status ? `Status → ${status.replace('_', ' ')}` : assignedToId !== undefined ? 'Reassigned' : 'Updated'), status }],
-            }),
-          }))
-          get().log(actorId, `issue.${status ?? 'updated'}`, id)
-        },
-        returnTask: (id, actorId, note) => {
-          const t = get().tasks.find((x) => x.id === id)
-          if (!t || t.status !== 'awaiting_verification' || t.personId === actorId || !note.trim()) return false
-          patchTask(id, () => ({ status: 'in_progress', completedAt: undefined, returned: { byId: actorId, at: nowIso(), note: note.trim() } }))
-          get().log(actorId, 'task.returned', `${id}: ${note.trim()}`)
-          return true
-        },
-        cancelTask: (id, actorId, reason) => {
-          const t = get().tasks.find((x) => x.id === id)
-          if (!t || t.status === 'done' || t.status === 'cancelled') return false
-          patchTask(id, () => ({ status: 'cancelled', cancelled: { byId: actorId, at: nowIso(), reason } }))
-          get().log(actorId, 'task.cancelled', `${id}: ${reason}`)
-          return true
-        },
-        reassignTask: (id, personId, actorId) => {
-          const t = get().tasks.find((x) => x.id === id)
-          if (!t || (t.status !== 'scheduled' && t.status !== 'in_progress') || t.personId === personId) return false
-          patchTask(id, () => ({ personId, assignedById: actorId }))
-          get().log(actorId, 'task.reassigned', `${id} → ${personId}`)
-          return true
-        },
-        checkIn: (personId, mark = 'checkin') => {
-          if (offline()) {
-            set((s) => ({ connection: { ...s.connection, checkin: 'attention' }, outbox: [...s.outbox.filter((o) => !(o.kind === 'checkin' && o.personId === personId)), { id: uid('ob'), kind: 'checkin', personId, mark, at: nowIso() }] }))
-            return
-          }
-          const date = hotelDateKey()
-          set((s) => ({
-            attendance: [...s.attendance.filter((a) => !(a.personId === personId && a.date === date)),
-              { id: uid('at'), propertyId: s.properties[0].id, personId, date, mark, at: nowIso() }],
-            connection: { ...s.connection, checkin: 'ok' },
-          }))
-          get().log(personId, 'attendance.checkin', date)
-        },
-        endShift: (personId, early) => {
-          const now = Date.now()
-          const shifts = get().shifts.filter((s) => s.memberIds.includes(personId))
-          const live = (shifts.find((s) => Date.parse(s.start) <= now && now < Date.parse(s.end))
-            ?? shifts[0])?.id
-            ?? [...get().tasks].filter((t) => t.personId === personId).sort((a, b) => b.start.localeCompare(a.start))[0]?.shiftId ?? 'morning'
-          set((s) => ({
-            cover: [...s.cover, { id: uid('c'), propertyId: s.properties[0].id, kind: early ? 'early_departure' : 'ended', personId, shiftId: live,
-              date: hotelDateKey(), note: early ? 'Went early from the Employee app' : 'Ended shift from the Employee app', status: early ? 'pending' : 'approved' }],
-          }))
-          get().log(personId, early ? 'shift.went_early' : 'shift.ended', live)
-        },
+/** Demo failure simulation (Connection details → demo controls). */
+const sim = { hotelDown: false, checkinDown: false }
+const demoOffline = () => sim.hotelDown || (typeof navigator !== 'undefined' && navigator.onLine === false)
+let demoUnsub: (() => void) | undefined
 
-        openRef: (personId, kind, refId) =>
-          set((s) => {
-            const ex = s.ackEvents.find((a) => a.personId === personId && a.kind === kind && a.refId === refId)
-            if (ex?.openedAt) return {}
-            const ev = ex ? { ...ex, openedAt: nowIso() } : { id: uid('ack'), propertyId: s.properties[0].id, personId, kind, refId, openedAt: nowIso(), acknowledgedAt: null }
-            return { ackEvents: ex ? s.ackEvents.map((a) => (a.id === ex.id ? ev : a)) : [...s.ackEvents, ev] }
-          }),
-        acknowledge: (personId, kind, refId, reply) => {
-          get().openRef(personId, kind, refId)
-          set((s) => ({
-            ackEvents: s.ackEvents.map((a) =>
-              a.personId === personId && a.kind === kind && a.refId === refId
-                ? { ...a, acknowledgedAt: a.acknowledgedAt ?? nowIso(), ...(reply !== undefined ? { repliedAt: nowIso(), reply } : {}) }
-                : a),
-          }))
-          get().log(personId, `${kind}.acknowledged`, refId)
-        },
+const demo: Transport = {
+  fetch: async () => { if (demoOffline()) throw new OfflineError('Hotel system offline'); return demoHub.read() },
+  act: async (action, as) => {
+    if (demoOffline() || (sim.checkinDown && action.type === 'checkIn')) throw new OfflineError('Hotel system offline')
+    try { return demoHub.act(actor(as), action) } catch (e) { throw e instanceof DomainError ? new ApiError(e.message, 422) : e }
+  },
+  connect: (on) => {
+    demoUnsub?.()
+    demoUnsub = demoHub.subscribe(on.changed)
+    on.status(demoOffline() ? 'offline' : 'online')
+  },
+}
+const transport = DEMO ? demo : live
 
-        assignBlocker: ({ sopId, roomId, shiftId, start }) => {
-          const sop = get().sops.find((s) => s.id === sopId)
-          if (!sop?.currentVersionId) return 'This SOP has no published version'
-          if (sop.retiredAt) return 'This SOP is retired'
-          const v = get().sopVersions.find((x) => x.id === sop.currentVersionId)
-          if (v?.status !== 'published') return 'This SOP has no published version'
-          const room = get().rooms.find((r) => r.id === roomId)
-          if (room?.occupancy === 'out_of_order') return `Room ${room.number} is out of order`
-          // One open task per room per shift.
-          if (get().tasks.some((x) => x.roomId === roomId && x.shiftId === shiftId && x.status !== 'done' && x.status !== 'cancelled' && hotelDateKey(x.start) === hotelDateKey(start)))
-            return `Room ${room?.number ?? roomId} already has open work on this shift`
-          return null
-        },
-        bulkAssign: (items) => {
-          const created: Task[] = [], skipped: { roomId: string; reason: string }[] = []
-          for (const it of items) {
-            const why = get().assignBlocker(it)
-            if (why) { skipped.push({ roomId: it.roomId, reason: why }); continue }
-            const t = get().assignTask(it)
-            if (t) created.push(t); else skipped.push({ roomId: it.roomId, reason: 'Could not be assigned' })
-          }
-          return { created, skipped }
-        },
-        assignTask: ({ sopId, ...t }) => {
-          if (get().assignBlocker({ sopId, roomId: t.roomId, shiftId: t.shiftId, start: t.start })) return null
-          const sop = get().sops.find((s) => s.id === sopId)!
-          const task: Task = {
-            ...t, id: uid('t'), propertyId: get().properties[0].id, sopVersionId: sop.currentVersionId!, status: 'scheduled',
-            doneStepIds: [], photoStepIds: [], mode: 'guided', reviewedVersionConfirmed: true,
-          }
-          set((s) => ({ tasks: [...s.tasks, task] }))
-          get().log(t.assignedById, 'task.assigned', `${t.roomId} → ${t.personId} (${sop.currentVersionId})`)
-          return task
-        },
-        setTaskMode: (id, mode) => patchTask(id, () => ({ mode })),
-        decideCover: (id, status) => set((s) => ({ cover: s.cover.map((c) => (c.id === id ? { ...c, status } : c)) })),
-        approveBackup: ({ shiftId, date, personId, backupId, actorId = 'elena', coverId }) => {
-          // The roster only changes when the cover is for today (the demo re-seeds each hotel day);
-          // future dates are recorded as approved cover and shown on the planner.
-          const today = date === hotelDateKey()
-          set((s) => ({
-            cover: [...s.cover.map((c) => (c.id === coverId ? { ...c, status: 'approved' as const } : c)),
-              { id: uid('c'), propertyId: s.properties[0].id, kind: 'backup', personId, backupId, shiftId, date, note: 'Backup approved', status: 'approved' }],
-            shifts: today ? s.shifts.map((sh) => (sh.id === shiftId ? { ...sh, memberIds: [...new Set([...sh.memberIds.filter((m) => m !== personId), backupId])] } : sh)) : s.shifts,
-          }))
-          get().log(actorId, 'cover.backup_approved', `${backupId} covers ${personId} on ${shiftId} ${date}`)
-        },
-        sendNotice: (n) => {
-          const notice: Notice = { ...n, id: uid('n'), propertyId: get().properties[0].id, sentAt: nowIso(), sample: false }
-          set((s) => ({ notices: [notice, ...s.notices] }))
-          get().log(n.sentById, 'notice.sent', `${n.title} → ${n.recipientIds.length}`)
-        },
-        decideJoin: (id, status) => {
-          const j = get().joinRequests.find((x) => x.id === id)
-          if (!j || j.status !== 'pending') return
-          set((s) => {
-            const joinRequests = s.joinRequests.map((x) => (x.id === id ? { ...x, status } : x))
-            if (status !== 'approved') return { joinRequests }
-            const role = s.jobRoles.find((r) => r.id === j.jobRoleId)
-            const pid = uid('p')
-            const person = { id: pid, propertyId: j.propertyId, name: j.name, initials: j.name.split(' ').map((w) => w[0]).join('').slice(0, 2), jobRoleId: j.jobRoleId,
-              title: role?.name ?? 'Team member', catalogue: ['whole' as const], status: 'active' as const, hiredAt: nowIso(), languages: ['English'] }
-            return { joinRequests, people: [...s.people, person], shifts: s.shifts.map((sh) => (sh.id === j.shiftId ? { ...sh, memberIds: [...sh.memberIds, pid] } : sh)) }
-          })
-        },
+let refetchTimer: ReturnType<typeof setTimeout> | undefined
+let tick: ReturnType<typeof setInterval> | undefined
+let flushing = false
+let sendChain: Promise<unknown> = Promise.resolve()
+/** The authoritative copy plus this device's unsent changes, exactly as the domain rules see it (stored shift times). */
+let raw: State = PLACEHOLDER
 
-        saveDraft: (v) => {
-          const next = { ...v, updatedAt: nowIso() }
-          set((s) => ({ sopVersions: s.sopVersions.some((x) => x.id === v.id) ? s.sopVersions.map((x) => (x.id === v.id ? next : x)) : [...s.sopVersions, next] }))
-          return next
-        },
-        newDraftFrom: (versionId, authorId, seedNote) => {
-          const base = versionId ? get().sopVersions.find((v) => v.id === versionId) : undefined
-          const sopId = base?.sopId ?? uid('sop')
-          const d: SopVersion = {
-            id: uid('v'), sopId, propertyId: get().properties[0].id, version: base ? proposeVersion(base, base).label : '1.0', baseVersionId: base?.id ?? null,
-            status: 'draft', title: base?.title ?? '', code: base?.code ?? '', jobRoleId: base?.jobRoleId ?? 'room-attendant', language: base?.language ?? 'English',
-            tags: base?.tags ?? [], timeTargetMin: base?.timeTargetMin ?? 15,
-            steps: base ? base.steps.map((s) => ({ ...s, guestCare: seedNote && s.id === seedNote.stepId ? `${s.guestCare}\n[Feedback] ${seedNote.text}`.trim() : s.guestCare }))
-              : [{ id: uid('st'), icon: 'check', instruction: '', guestCare: '', requireCheck: false, allowPhoto: false } satisfies SopStep],
-            authorId, createdAt: nowIso(), updatedAt: nowIso(), reviews: [], catalogue: base?.catalogue ?? ['pilot', 'whole'],
-          }
-          set((s) => ({ sopVersions: [...s.sopVersions, d] }))
-          if (seedNote) get().resolveFeedback(seedNote.feedbackId)
-          return d
-        },
-        deleteDraft: (id) => set((s) => ({ sopVersions: s.sopVersions.filter((v) => !(v.id === id && v.status === 'draft')) })),
-        submitForReview: (id) => {
-          set((s) => ({
-            sopVersions: s.sopVersions.map((v) => {
-              if (v.id !== id) return v
-              const base = s.sopVersions.find((b) => b.id === v.baseVersionId)
-              return { ...v, status: 'in_review', submittedAt: nowIso(), reviews: [], version: proposeVersion(v, base).label }
-            }),
-            sops: s.sops.some((x) => x.id === s.sopVersions.find((v) => v.id === id)?.sopId) ? s.sops
-              : [...s.sops, (() => { const v = s.sopVersions.find((x) => x.id === id)!; return { id: v.sopId, propertyId: v.propertyId, code: v.code, currentVersionId: null } })()],
-          }))
-          const v = get().sopVersions.find((x) => x.id === id)!
-          get().log(v.authorId, 'sop.submitted', `${v.code} ${v.version}`)
-        },
-        review: (id, d) => {
-          const target = get().sopVersions.find((v) => v.id === id)
-          if (!target || target.status !== 'in_review' || d.reviewerId === target.authorId) return
-          set((s) => ({
-            sopVersions: s.sopVersions.map((v) => {
-              if (v.id !== id || d.reviewerId === v.authorId) return v // authors never review their own version
-              const reviews = [...v.reviews.filter((r) => !(r.reviewerId === d.reviewerId && !r.stepId && !d.stepId)), { ...d, id: uid('rv'), at: nowIso() }]
-              const status = d.stepId ? v.status : d.decision === 'reject' ? 'rejected' : d.decision === 'request_changes' ? 'changes_requested' : v.status
-              return { ...v, reviews, status }
-            }),
-          }))
-          get().log(d.reviewerId, `sop.review.${d.decision}`, id)
-        },
-        release: (id, actorId) => {
-          const v = get().sopVersions.find((x) => x.id === id)
-          if (!v || v.status !== 'in_review') return null
-          const approvers = new Set(v.reviews.filter((r) => r.decision === 'approve' && !r.stepId && r.reviewerId !== v.authorId).map((r) => r.reviewerId))
-          if (approvers.size < APPROVALS_REQUIRED) return null
-          const sop = get().sops.find((s) => s.id === v.sopId)
-          const current = get().sopVersions.find((x) => x.id === sop?.currentVersionId)
-          const label = proposeVersion(v, current).label
-          const at = nowIso()
-          // In-flight tasks keep their pinned sopVersionId; only new assignments pick this up.
-          set((s) => ({
-            sopVersions: s.sopVersions.map((x) =>
-              x.id === id ? { ...x, status: 'published', version: label, publishedAt: at, effectiveAt: at }
-                : x.id === current?.id ? { ...x, status: 'superseded' } : x),
-            sops: s.sops.map((x) => (x.id === v.sopId ? { ...x, currentVersionId: id } : x)),
-          }))
-          get().log(actorId, 'sop.released', `${v.code} ${label}`)
-          return label
-        },
-        addFeedback: (lane, sopVersionId, fromId, text, o = {}) =>
-          set((s) => ({ feedback: [{ id: uid('f'), propertyId: s.properties[0].id, lane, sopVersionId, fromId, text, at: nowIso(), status: 'open', ...o }, ...s.feedback] })),
-        resolveFeedback: (id) => set((s) => ({ feedback: s.feedback.map((f) => (f.id === id ? { ...f, status: 'done' } : f)) })),
-        retireSop: (sopId, actorId) => {
-          set((s) => ({ sops: s.sops.map((x) => (x.id === sopId ? { ...x, retiredAt: nowIso(), retiredById: actorId } : x)) }))
-          get().log(actorId, 'sop.retired', get().sops.find((x) => x.id === sopId)?.code ?? sopId)
-        },
-        restoreSop: (sopId, actorId) => {
-          set((s) => ({ sops: s.sops.map((x) => (x.id === sopId ? { ...x, retiredAt: undefined, retiredById: undefined } : x)) }))
-          get().log(actorId, 'sop.restored', get().sops.find((x) => x.id === sopId)?.code ?? sopId)
-        },
+export const useDB = create<Store>()((set, get) => {
+  const expose = (s: State) => { raw = s; set(materialize(s)) }
+  const setHotel = (hotel: Connection['hotel']) => { if (get().connection.hotel !== hotel) set((s) => ({ connection: { ...s.connection, hotel } })) }
+  const replayOutbox = (base: State): State => {
+    let s = base
+    for (const q of get().outbox) { try { s = apply(s, actor(q.as), q.action, q.at).state } catch { /* will be rejected by the server too */ } }
+    return s
+  }
+  const reportError = (msg: string) => { set({ error: msg }); toast.error(msg) }
+
+  const refetch = async () => {
+    try {
+      const r = await transport.fetch()
+      setHotelTimeZone(r.state.property.timeZone)
+      expose(replayOutbox(normalizeState(r.state)))
+      set({ rev: r.rev, ready: true })
+      setHotel('online')
+    } catch (e) {
+      if (e instanceof OfflineError) setHotel('offline')
+    }
+  }
+  const scheduleRefetch = () => { clearTimeout(refetchTimer); refetchTimer = setTimeout(refetch, 120) }
+
+  const flush = async () => {
+    if (flushing) return
+    flushing = true
+    try {
+      while (get().outbox.length) {
+        const q = get().outbox[0]!
+        try {
+          await transport.act(q.action, q.as)
+        } catch (e) {
+          if (e instanceof OfflineError) return
+          reportError(e instanceof ApiError ? `A change made offline was not saved: ${e.message}` : 'A change made offline was not saved')
+        }
+        const rest = get().outbox.slice(1); set({ outbox: rest }); saveOutbox(rest)
+        if (q.action.type === 'checkIn') set((s) => ({ connection: { ...s.connection, checkin: 'ok' } }))
       }
+      await refetch()
+    } finally { flushing = false }
+  }
+
+  const connect = () => transport.connect({
+    changed: (rev) => { if (rev !== get().rev) scheduleRefetch() },
+    status: (h) => { setHotel(h); if (h === 'online') void flush() },
+  })
+
+  const dispatch: Store['dispatch'] = (action, as, opts = {}) => {
+    const at = new Date().toISOString()
+    let value: unknown
+    try {
+      const r = apply(raw, actor(as), action, at)
+      value = r.value
+      expose(r.state)
+    } catch (e) {
+      const error = e instanceof DomainError ? e.message : 'That did not work'
+      if (!opts.quiet) reportError(error)
+      return { ok: false, error }
+    }
+    const queue = () => {
+      const q = [...get().outbox, { action, at, as }]; set({ outbox: q }); saveOutbox(q)
+      if (action.type === 'checkIn') set((s) => ({ connection: { ...s.connection, checkin: 'attention' } }))
+    }
+    if (get().connection.hotel !== 'online' || get().outbox.length) { queue(); void flush(); return { ok: true, value } }
+    // Sends go out one at a time so the hotel sees writes in the order they were made.
+    sendChain = sendChain.then(() => transport.act(action, as))
+      .then(() => { if (action.type === 'checkIn') set((s) => ({ connection: { ...s.connection, checkin: 'ok' } })) })
+      .catch((e) => {
+        if (e instanceof OfflineError) { if (!(DEMO && sim.checkinDown && !sim.hotelDown)) setHotel('offline'); queue() }
+        else { reportError(e.message); void refetch() }
+      })
+    sendChain = sendChain.catch(() => {})
+    return { ok: true, value }
+  }
+  const run = (action: Action, as?: string) => dispatch(action, as).ok
+  const quiet = (action: Action, as?: string) => dispatch(action, as, { quiet: true }).ok
+  const valueOf = <T,>(r: Result) => (r.ok ? (r.value as T) : null)
+
+  return {
+    ...materialize(PLACEHOLDER),
+    mode: DEMO ? 'demo' : 'live',
+    ready: false, rev: -1, connection: { hotel: 'connecting', checkin: 'ok' }, outbox: [], error: null,
+    clearError: () => set({ error: null }),
+    load: async () => {
+      set({ outbox: loadOutbox() })
+      await refetch()
+      connect()
+      // Keep "today's" shift instances current as the hotel day moves on.
+      clearInterval(tick); tick = setInterval(() => { if (get().ready) set(materialize(raw)) }, 60_000)
     },
-    {
-      name: 'mise-db-v4',
-      partialize: (s) => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { connection: _c, ...rest } = s
-        return rest
-      },
+    dispatch,
+    send: async (action) => {
+      apply(raw, actor(), action, new Date().toISOString()) // throws the same rule the server would
+      await transport.act(action)
+      await refetch()
     },
-  ),
-)
+    retryConnection: async () => {
+      if (DEMO) sim.hotelDown = false
+      wsRetry = 0; connect(); await refetch(); await flush()
+    },
+    setConnection: (c) => {
+      if (DEMO) {
+        if (c.hotel) sim.hotelDown = c.hotel === 'offline'
+        if (c.checkin) sim.checkinDown = c.checkin === 'attention'
+        if (demoOffline()) setHotel('offline')
+        if (c.checkin === 'attention') set((s) => ({ connection: { ...s.connection, checkin: 'attention' } }))
+        if (!demoOffline()) { setHotel('online'); void flush() }
+        return
+      }
+      if (c.hotel === 'online') get().retryConnection()
+    },
+    flushOutbox: () => flush(),
+    reset: () => {
+      if (!DEMO) return
+      sim.hotelDown = false; sim.checkinDown = false
+      set({ outbox: [], connection: { hotel: 'online', checkin: 'ok' } }); saveOutbox([])
+      demoHub.reset()
+      void refetch()
+    },
+    log: (actorId, event, detail) => { quiet({ type: 'logEvent', event, detail: detail.slice(0, 300) }, actorId) },
 
-// The shared demo re-seeds each hotel day so Today always has live work in it.
-if (useDB.getState().seededFor !== hotelDateKey()) useDB.getState().reset()
+    startTask: (taskId) => { run({ type: 'startTask', taskId }) },
+    toggleStep: (taskId, stepId) => { run({ type: 'toggleStep', taskId, stepId }) },
+    attachPhoto: async (taskId, stepId, file) => {
+      if (DEMO) {
+        const key = `${raw.property.id}/${uid('photo')}`
+        if (file) demoPhotos.set(key, URL.createObjectURL(file))
+        run({ type: 'attachPhoto', taskId, stepId, key })
+        return
+      }
+      if (!file) return
+      const fd = new FormData(); fd.append('file', file)
+      try {
+        const { key } = await api<{ key: string }>('/photos', { method: 'POST', body: fd })
+        run({ type: 'attachPhoto', taskId, stepId, key })
+      } catch (e) { reportError(e instanceof OfflineError ? 'Photos need the hotel connection. Try again when it is back.' : (e as Error).message) }
+    },
+    requestVerification: (taskId) => { run({ type: 'requestVerification', taskId }) },
+    verifyTask: (taskId, actorId) => run({ type: 'verifyTask', taskId }, actorId),
+    returnTask: (taskId, actorId, note) => quiet({ type: 'returnTask', taskId, note }, actorId),
+    cancelTask: (taskId, actorId, reason) => quiet({ type: 'cancelTask', taskId, reason }, actorId),
+    reassignTask: (taskId, personId, actorId) => quiet({ type: 'reassignTask', taskId, personId }, actorId),
+    setTaskPriority: (taskId, priority, actorId) => quiet({ type: 'setTaskPriority', taskId, priority }, actorId),
+    endUrgent: (taskId, reason) => { run({ type: 'endUrgent', taskId, reason }) },
+    markUrgentSeen: (taskId) => { run({ type: 'markUrgentSeen', taskId }) },
+    reportIssue: (taskId, personId, text, o = {}) => valueOf<Issue>(dispatch({ type: 'reportIssue', id: uid('iss'), taskId, text, ...o }, personId)),
+    updateIssue: (issueId, actorId, patch) => run({ type: 'updateIssue', issueId, ...patch }, actorId),
+    resolveIssue: (issueId) => { run({ type: 'resolveIssue', issueId }) },
+    checkIn: (personId, mark) => { run({ type: 'checkIn', id: uid('att'), mark }, personId) },
+    endShift: (personId, early) => { run({ type: 'endShift', id: uid('cov'), early }, personId) },
+    requestTimeOff: (shiftId, date, note) => { run({ type: 'requestTimeOff', id: uid('cov'), shiftId, date, note }) },
+    openRef: (personId, kind, refId) => {
+      const me = actor(personId).personId
+      if (get().ackEvents.some((a) => a.personId === me && a.kind === kind && a.refId === refId && a.openedAt)) return
+      quiet({ type: 'openRef', id: uid('ack'), kind, refId }, personId)
+    },
+    acknowledge: (personId, kind, refId, reply) => { run({ type: 'acknowledge', id: uid('ack'), kind, refId, reply }, personId) },
 
-// Changes queued before a reload sync as soon as the app is back online.
-if (useDB.getState().connection.hotel === 'online' && useDB.getState().outbox.length) useDB.getState().flushOutbox()
+    assignBlocker: (t) => blockerFor(raw, t),
+    assignTask: ({ assignedById, sopId, ...t }) =>
+      valueOf<Task>(dispatch({ type: 'assignTask', id: uid('task'), sopId, shiftId: t.shiftId, personId: t.personId, roomId: t.roomId, start: t.start, end: t.end, priority: t.priority, notes: t.notes }, assignedById)),
+    bulkAssign: (items) => {
+      const created: Task[] = [], skipped: { roomId: string; reason: string }[] = []
+      for (const { assignedById, sopId, ...t } of items) {
+        const r = dispatch({ type: 'assignTask', id: uid('task'), sopId, shiftId: t.shiftId, personId: t.personId, roomId: t.roomId, start: t.start, end: t.end, priority: t.priority, notes: t.notes }, assignedById, { quiet: true })
+        if (r.ok) created.push(r.value as Task); else skipped.push({ roomId: t.roomId, reason: r.error })
+      }
+      return { created, skipped }
+    },
+    setTaskMode: (taskId, mode) => { run({ type: 'setTaskMode', taskId, mode }) },
+    decideCover: (coverId, status) => quiet({ type: 'decideCover', coverId, status }),
+    approveBackup: ({ actorId, ...o }) => run({ type: 'approveBackup', id: uid('cov'), ...o }, actorId),
+    saveNoticeTemplate: (o) => { run({ type: 'saveNoticeTemplate', id: uid('ntc'), ...o }) },
+    sendNotice: ({ sentById, ...n }) => run({ type: 'sendNotice', id: uid('ntc'), title: n.title, body: n.body, replyNeeded: n.replyNeeded, audience: n.audience, teamShiftId: n.teamShiftId,
+      recipientIds: n.recipientIds, priority: n.priority, expiresAt: n.expiresAt }, sentById),
+    decideJoin: (joinId, status) => quiet({ type: 'decideJoin', joinId, status, personId: status === 'approved' ? uid('person') : undefined }),
 
-// Cross-tab "real-time": another tab's write lands here without a reload.
+    saveDraft: (version, o = {}) => valueOf<SopVersion>(dispatch({ type: 'saveDraft', version, department: o.department, created: o.created }, version.authorId)) ?? version,
+    newDraftFrom: (versionId, authorId, seedNote, sopId) => valueOf<SopVersion>(dispatch({ type: 'newDraftFrom', id: uid('ver'), sopId: sopId ?? uid('sop'), versionId, seedNote }, authorId)),
+    deleteDraft: (versionId) => run({ type: 'deleteDraft', versionId }, raw.sopVersions.find((v) => v.id === versionId)?.authorId),
+    submitForReview: (versionId) => run({ type: 'submitForReview', versionId }, raw.sopVersions.find((v) => v.id === versionId)?.authorId),
+    review: (versionId, d) => run({ type: 'review', id: uid('rev'), versionId, decision: d.decision, comment: d.comment, stepId: d.stepId }, d.reviewerId),
+    release: (versionId, actorId) => valueOf<string>(dispatch({ type: 'release', versionId }, actorId)),
+    retireSop: (sopId, actorId) => { run({ type: 'retireSop', sopId }, actorId) },
+    restoreSop: (sopId, actorId) => { run({ type: 'restoreSop', sopId }, actorId) },
+    addFeedback: (lane, sopVersionId, fromId, text, o = {}) => { run({ type: 'addFeedback', id: uid('fb'), lane, sopVersionId, text, ...o }, fromId) },
+    resolveFeedback: (feedbackId, reopen) => { run({ type: 'resolveFeedback', feedbackId, reopen }) },
+  }
+})
+
+// A different sign-in (or signing out) must never show the previous person's data, even for a moment.
+useSession.subscribe((s, prev) => {
+  if (s.token === prev.token) return
+  clearTimeout(wsTimer); clearTimeout(refetchTimer); clearInterval(tick)
+  const sock = ws; ws = null; try { sock?.close() } catch { /* ignore */ }
+  demoUnsub?.(); demoUnsub = undefined
+  raw = PLACEHOLDER
+  useDB.setState({ ...materialize(PLACEHOLDER), ready: false, rev: -1, outbox: [], error: null, connection: { hotel: 'connecting', checkin: 'ok' } })
+})
+
 if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (e) => { if (e.key === 'mise-db-v4') useDB.persist.rehydrate() })
-  window.addEventListener('online', () => useDB.getState().setConnection({ hotel: 'online' }))
-  window.addEventListener('offline', () => useDB.getState().setConnection({ hotel: 'offline' }))
+  window.addEventListener('online', () => void useDB.getState().retryConnection())
+  window.addEventListener('offline', () => useDB.setState((s) => ({ connection: { ...s.connection, hotel: 'offline' } })))
 }
 
-// Selectors
 export const byId = <T extends { id: string }>(xs: T[], id?: string | null) => xs.find((x) => x.id === id)
 export const priorityLabel: Record<Priority, string> = { standard: 'Standard priority', high: 'High priority', urgent: 'Urgent priority' }

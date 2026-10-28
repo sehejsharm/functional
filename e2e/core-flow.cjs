@@ -9,8 +9,8 @@ if (!PDF) { console.error('Set SOP_PDF to the path of an SOP PDF with a numbered
   p.on('pageerror', (e) => errs.push(e.message))
   let n = 0
   const step = async (label, fn) => { n++; try { await fn(); console.log('ok  ', label) } catch (e) { await p.screenshot({ path: `${OUT}/fail-${n}.png` }); console.log('FAIL', label, '—', e.message.split('\n')[0]); await b.close(); process.exit(1) } }
-  const db = () => p.evaluate(() => JSON.parse(localStorage.getItem('mise-db-v4')).state)
-  const session = (patch) => p.evaluate((patch) => { const s = JSON.parse(localStorage.getItem('mise-session-v1')); Object.assign(s.state, patch); localStorage.setItem('mise-session-v1', JSON.stringify(s)) }, patch)
+  const db = () => p.evaluate(() => JSON.parse(localStorage.getItem('mise-demo-hub-v1')).state)
+  const session = (patch) => p.evaluate((patch) => { const s = JSON.parse(localStorage.getItem('mise-session-demo-v1')); Object.assign(s.state, patch); localStorage.setItem('mise-session-demo-v1', JSON.stringify(s)) }, patch)
   const dialog = () => p.locator('[role=dialog]').last()
 
   await step('sign in', async () => { await p.goto(U); await p.waitForTimeout(600); await p.keyboard.type('miseauroragrand26'); await p.keyboard.press('Enter'); await p.waitForURL(/employee/) })

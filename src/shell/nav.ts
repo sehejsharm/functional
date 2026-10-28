@@ -33,6 +33,7 @@ export const NAV: Record<Portal, NavItem[]> = {
     { to: '/manager/guided-or-standard', label: 'Guided or Standard', icon: ToggleLeft, group: 'Settings' },
     { to: '/manager/join-requests', label: 'Join requests', icon: UserPlus, count: 'join', group: 'Settings' },
     { to: '/manager/sop-policy', label: 'Hotel SOP policy', icon: ClipboardCheck, group: 'Settings' },
+    { to: '/manager/platform', label: 'Platform & audit', icon: Settings2, need: 'admin', group: 'Administration' },
   ],
   author: [
     { to: '/author', label: 'SOP library', icon: Library },

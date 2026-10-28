@@ -90,36 +90,43 @@ export function SwitchingOverlay() {
   )
 }
 
-/** Connection status and the demo's simulated failure states. */
+/** Connection status. Live: the WebSocket to the hotel server. Demo: plus the simulated failure states. */
 export function ConnectionChip({ compact }: { compact?: boolean }) {
   const conn = useDB((s) => s.connection)
   const outbox = useDB((s) => s.outbox.length)
+  const rev = useDB((s) => s.rev)
+  const demo = useDB((s) => s.mode === 'demo')
   const setConnection = useDB((s) => s.setConnection)
+  const retry = useDB((s) => s.retryConnection)
   const [open, setOpen] = useState(false)
-  const offline = conn.hotel === 'offline'
+  const offline = conn.hotel === 'offline', connecting = conn.hotel === 'connecting'
   return (
     <>
       <button onClick={() => setOpen(true)} className={clsx('flex w-full items-center gap-2 rounded-cell px-2.5 py-2 text-left text-xs transition', compact ? 'text-ink-2 hover:bg-ink/5' : 'text-sage-300 hover:bg-white/5 hover:text-white')}>
-        <span className="relative flex h-2 w-2">{!offline && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ok opacity-60" />}<span className={clsx('relative inline-flex h-2 w-2 rounded-full', offline ? 'bg-danger' : 'bg-ok')} /></span>
-        <span className="flex-1">{offline ? 'Offline · changes queued' : 'All systems live'}</span>
+        <span className="relative flex h-2 w-2">{!offline && !connecting && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ok opacity-60" />}<span className={clsx('relative inline-flex h-2 w-2 rounded-full', offline ? 'bg-danger' : connecting ? 'bg-amber' : 'bg-ok')} /></span>
+        <span className="flex-1">{offline ? 'Offline · changes queued' : connecting ? 'Connecting to hotel…' : demo ? 'Demo · all systems live' : 'All systems live'}</span>
         {outbox > 0 && <Badge tone="warning">{outbox} queued</Badge>}
       </button>
-      <Drawer open={open} onClose={() => setOpen(false)} title="System status" description="Live connection to the hotel system and the check-in service.">
+      <Drawer open={open} onClose={() => setOpen(false)} title="System status" description={demo ? 'Demo mode: this browser holds its own copy of the hotel, run by the same rules as the server.' : 'Live connection to the hotel server and the check-in service.'}>
         <div className="space-y-3">
-          {([['Hotel system', offline ? 'Offline' : 'Connected', offline], ['Check-in service', conn.checkin === 'ok' ? 'Confirmed' : 'Needs attention', conn.checkin !== 'ok'], ['Changes waiting to sync', String(outbox), outbox > 0]] as const).map(([k, v, bad]) => (
+          {([['Hotel system', offline ? 'Offline' : connecting ? 'Connecting' : 'Connected', offline || connecting], ['Check-in service', conn.checkin === 'ok' ? 'Confirmed' : 'Waiting to confirm', conn.checkin !== 'ok'],
+            ['Changes waiting to sync', String(outbox), outbox > 0], ['Data revision', String(Math.max(rev, 0)), false]] as const).map(([k, v, bad]) => (
             <div key={k} className="flex items-center justify-between rounded-cell border border-line px-3 py-2.5 text-sm">
               <span className="text-ink-2">{k}</span><Badge tone={bad ? 'warning' : 'success'} dot>{v}</Badge>
             </div>
           ))}
         </div>
-        <div className="mt-6 rounded-card border border-dashed border-line-strong p-4">
-          <div className="text-sm font-semibold text-ink">Demo controls</div>
-          <p className="mt-1 text-xs text-muted">Simulate the two independent failure states. Step ticks made offline queue and clear on reconnect.</p>
-          <div className="mt-3 grid gap-2">
-            <Button variant="secondary" icon={offline ? Wifi : WifiOff} onClick={() => setConnection({ hotel: offline ? 'online' : 'offline' })}>{offline ? 'Restore hotel connection' : 'Drop hotel connection'}</Button>
-            <Button variant="secondary" onClick={() => setConnection({ checkin: conn.checkin === 'ok' ? 'attention' : 'ok' })}>{conn.checkin === 'ok' ? 'Fail check-in confirmation' : 'Confirm check-in service'}</Button>
+        <p className="mt-4 text-xs text-muted">Work done while offline is kept on this device and sent in order as soon as the hotel answers.</p>
+        {demo ? (
+          <div className="mt-6 rounded-card border border-dashed border-line-strong p-4">
+            <div className="text-sm font-semibold text-ink">Demo controls</div>
+            <p className="mt-1 text-xs text-muted">Simulate the two independent failure states. Step ticks made offline queue and clear on reconnect.</p>
+            <div className="mt-3 grid gap-2">
+              <Button variant="secondary" icon={offline ? Wifi : WifiOff} onClick={() => setConnection({ hotel: offline ? 'online' : 'offline' })}>{offline ? 'Restore hotel connection' : 'Drop hotel connection'}</Button>
+              <Button variant="secondary" onClick={() => setConnection({ checkin: conn.checkin === 'ok' ? 'attention' : 'ok' })}>{conn.checkin === 'ok' ? 'Fail check-in confirmation' : 'Confirm check-in service'}</Button>
+            </div>
           </div>
-        </div>
+        ) : <Button variant="primary" block className="mt-4" icon={Wifi} onClick={retry}>Reconnect now</Button>}
       </Drawer>
     </>
   )
@@ -233,8 +240,9 @@ function NavList({ portal, onNavigate }: { portal: Portal; onNavigate?: () => vo
 }
 
 function Sidebar({ portal, onNavigate }: { portal: Portal; onNavigate?: () => void }) {
-  const { person, grant } = usePersona(portal)
-  const property = useDB((s) => s.properties.find((p) => p.id === grant?.propertyId))
+  const { person } = usePersona(portal)
+  const property = useDB((s) => s.property)
+  const demo = useDB((s) => s.mode === 'demo')
   const signOut = useSession((s) => s.signOut)
   const nav = useNavigate()
   return (
@@ -252,7 +260,7 @@ function Sidebar({ portal, onNavigate }: { portal: Portal; onNavigate?: () => vo
         <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-forest-950 to-transparent" />
       </div>
       <div className="space-y-1.5 border-t border-white/[0.07] px-3 py-2.5">
-        <DemoControls portal={portal} />
+        {demo && <DemoControls portal={portal} />}
         <ConnectionChip />
         {person && (
           <Menu align="start" width={232} label="Account menu" block trigger={({ toggle }) => (
@@ -265,7 +273,7 @@ function Sidebar({ portal, onNavigate }: { portal: Portal; onNavigate?: () => vo
             { heading: person.email ?? person.name },
             { label: 'Help & shortcuts', icon: HelpCircle, onClick: () => window.dispatchEvent(new CustomEvent('mise:help')) },
             'separator',
-            { label: 'Sign out of shared demo', icon: LogOut, danger: true, onClick: () => { signOut(); nav('/') } },
+            { label: demo ? 'Sign out of shared demo' : 'Sign out', icon: LogOut, danger: true, onClick: () => { void signOut().then(() => nav('/')) } },
           ]} />
         )}
       </div>
@@ -408,6 +416,8 @@ function BottomTabs({ portal }: { portal: Portal }) {
 
 export function PortalShell({ portal, children }: { portal: Portal; children: ReactNode }) {
   const loc = useLocation()
+  const setPortal = useSession((s) => s.setPortal)
+  useEffect(() => { if (useSession.getState().portal !== portal) setPortal(portal) }, [portal, setPortal])
   const [menu, setMenu] = useState(false)
   const isEmployee = portal === 'employee'
   const crumb = useCrumbStore((s) => s.label)

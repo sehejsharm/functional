@@ -141,19 +141,20 @@ function ShiftHeader({ person, shift, tasks, now }: { person: Person; shift?: Sh
 }
 
 /** Two independent degraded states: check-in confirmation vs. the wider hotel system. */
-function DegradedStates({ person, inHand }: { person: Person; inHand?: Task }) {
+function DegradedStates({ inHand }: { person: Person; inHand?: Task }) {
   const conn = useDB((s) => s.connection)
   const outbox = useDB((s) => s.outbox.length)
   const room = useDB((s) => byId(s.rooms, inHand?.roomId))
   const nav = useNavigate()
   const offline = conn.hotel === 'offline'
-  const refresh = () => {
-    useDB.getState().checkIn(person.id)
+  const refresh = async () => {
+    // Resend the check-in saved on this phone.
+    await useDB.getState().flushOutbox()
     if (useDB.getState().connection.checkin === 'ok') toast.success('Check-in confirmed', { description: `${fTime(Date.now())} hotel time` })
     else toast.error('Still could not confirm your check-in', { description: 'It stays saved on this phone. Try again in a minute.' })
   }
-  const retry = () => {
-    useDB.getState().setConnection({ hotel: navigator.onLine ? 'online' : 'offline' })
+  const retry = async () => {
+    await useDB.getState().retryConnection()
     if (useDB.getState().connection.hotel === 'online') toast.success('Hotel system is back', { description: outbox ? `${outbox} saved change${outbox === 1 ? '' : 's'} synced.` : 'Everything is up to date.' })
     else toast.error('Still offline', { description: 'Check the Wi-Fi and try again.' })
   }

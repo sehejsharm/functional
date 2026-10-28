@@ -6,13 +6,13 @@ const OUT = process.env.OUT_DIR ?? '.', U = process.env.BASE_URL ?? 'http://loca
 const routes = ['/employee', '/employee/tasks/t-114', '/employee/guides', '/employee/guides/hk-reset', '/employee/reports', '/employee/me',
   '/manager', '/manager/tasks', '/manager/assign-rooms', '/manager/incidents', '/manager/shift-cover', '/manager/staff', '/manager/staff/maya', '/manager/notices', '/manager/sops',
   '/manager/acknowledgments', '/manager/team-progress', '/manager/sop-results', '/manager/lead/board', '/manager/lead/planner', '/manager/lead/pulse', '/manager/guided-or-standard', '/manager/join-requests', '/manager/sop-policy',
-  '/author', '/author/sops/hk-reset', '/author/new', '/author/edit/hk-deep-1', '/author/reviews', '/author/reviews/hk-102-1', '/author/feedback', '/author/use-results', '/author/platform', '/screens', '/manager/nope', '/nope']
+  '/author', '/author/sops/hk-reset', '/author/new', '/author/edit/hk-deep-1', '/author/reviews', '/author/reviews/hk-102-1', '/author/feedback', '/author/use-results', '/author/platform', '/manager/platform', '/employee/me?tab=timeoff', '/screens', '/manager/nope', '/nope']
 ;(async () => { const b = await chromium.launch(); let bad = 0
   for (const [w, h, tag] of [[1440, 900, 'd'], [390, 844, 'm']]) {
     const p = await b.newPage({ viewport: { width: w, height: h } }); const errs = []
     p.on('pageerror', (e) => errs.push(e.message)); p.on('console', (m) => m.type() === 'error' && !/ERR_TUNNEL|fonts|unsplash/.test(m.text()) && errs.push('console: ' + m.text()))
     await p.goto(U); await p.waitForTimeout(700); await p.keyboard.type('miseauroragrand26'); await p.keyboard.press('Enter'); await p.waitForTimeout(1500)
-    await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('mise-session-v1')); s.state.demoTier = 'admin'; localStorage.setItem('mise-session-v1', JSON.stringify(s)) })
+    await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('mise-session-demo-v1')); s.state.demoTier = 'admin'; localStorage.setItem('mise-session-demo-v1', JSON.stringify(s)) })
     for (const r of routes) {
       errs.length = 0
       await p.goto(U + r); await p.waitForTimeout(1100)

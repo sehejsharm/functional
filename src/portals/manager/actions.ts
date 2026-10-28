@@ -1,5 +1,5 @@
-// Manager-only mutations that the shared store doesn't provide yet. Each one writes through
-// useDB.setState and leaves an audit entry, exactly like the built-in store actions.
+// Manager mutations with the checks the screens explain up front. Each one goes through the shared domain rules
+// (enforced again by the server) and leaves an audit entry.
 import { useDB } from '@/lib/db'
 import type { CoverItem, Priority, Task } from '@/lib/types'
 
@@ -9,9 +9,7 @@ const nowIso = () => new Date().toISOString()
 export function setTaskPriority(taskId: string, priority: Priority, actorId: string): boolean {
   const t = db().tasks.find((x) => x.id === taskId)
   if (!t || t.status === 'done' || t.status === 'cancelled' || t.priority === priority) return false
-  useDB.setState((s) => ({ tasks: s.tasks.map((x) => (x.id === taskId ? { ...x, priority } : x)) }))
-  db().log(actorId, 'task.priority_changed', `${taskId}: ${priority}`)
-  return true
+  return db().setTaskPriority(taskId, priority, actorId)
 }
 
 /** Verify with the self-verification rule checked up front so the UI can explain a refusal. */
@@ -32,20 +30,16 @@ export function setModeForTasks(tasks: Task[], mode: Task['mode'], actorId: stri
   return changed.length
 }
 
-export function decideCoverAs(item: CoverItem, status: 'approved' | 'declined', actorId: string, label: string) {
+export function decideCoverAs(item: CoverItem, status: 'approved' | 'declined', _actorId: string, _label: string) {
   // A stale tab must not re-decide an item someone already handled.
   if (db().cover.find((c) => c.id === item.id)?.status !== 'pending') return false
-  db().decideCover(item.id, status)
-  db().log(actorId, `cover.${status}`, label)
-  return true
+  return db().decideCover(item.id, status)
 }
 
-export function decideJoinAs(id: string, status: 'approved' | 'declined', actorId: string) {
+export function decideJoinAs(id: string, status: 'approved' | 'declined', _actorId: string) {
   const j = db().joinRequests.find((x) => x.id === id)
   if (!j || j.status !== 'pending') return false
-  db().decideJoin(id, status)
-  db().log(actorId, `join.${status}`, j.name)
-  return true
+  return db().decideJoin(id, status)
 }
 
 /** Nudge people to acknowledge a published version. Delivery is simulated; the audit line is real. */
@@ -58,8 +52,8 @@ export function sendAckReminder(actorId: string, personIds: string[], what: stri
 
 export function requestSopChange(actorId: string, versionId: string, text: string, stepId?: string) {
   const v = db().sopVersions.find((x) => x.id === versionId)
+  if (!v) return
   db().addFeedback('manager_request', versionId, actorId, text.trim(), stepId ? { stepId } : {})
-  db().log(actorId, 'sop.change_requested', v ? `${v.code} v${v.version}` : versionId)
 }
 
 export const stamp = nowIso

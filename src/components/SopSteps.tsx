@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import clsx from 'clsx'
 import { Camera, Check, Lock, ShieldCheck } from 'lucide-react'
+import { photoUrl } from '@/lib/api'
 import type { SopStep } from '@/lib/types'
 import { CheckMark, StepIcon } from './ui'
 
@@ -8,9 +9,9 @@ import { CheckMark, StepIcon } from './ui'
  * The SOP exactly as an employee sees it. Shared by the task screen and the author's "Preview".
  * Guided mode shows every step; Standard mode shows only milestones (checked steps + the last step).
  */
-export function SopSteps({ steps, version, done = [], photos = [], interactive, mode = 'guided', onToggle, onPhoto, title, compact, readOnly }: {
-  steps: SopStep[]; version: string; done?: string[]; photos?: string[]; interactive: boolean; mode?: 'guided' | 'standard'
-  onToggle?: (id: string) => void; onPhoto?: (id: string) => void; title?: string; compact?: boolean
+export function SopSteps({ steps, version, done = [], photos = [], photoKeys = {}, interactive, mode = 'guided', onToggle, onPhoto, title, compact, readOnly }: {
+  steps: SopStep[]; version: string; done?: string[]; photos?: string[]; photoKeys?: Record<string, string>; interactive: boolean; mode?: 'guided' | 'standard'
+  onToggle?: (id: string) => void; onPhoto?: (id: string, file: File) => void; title?: string; compact?: boolean
   /** Reading view (guides, previews, reviews): numbered steps, no ticks, no progress. */
   readOnly?: boolean
 }) {
@@ -55,11 +56,14 @@ export function SopSteps({ steps, version, done = [], photos = [], interactive, 
                     {s.requireCheck && <span className="inline-flex items-center gap-1 rounded-pill bg-info/10 px-2 py-0.5 text-2xs font-semibold text-info"><ShieldCheck size={12} /> Independent check</span>}
                     {s.allowPhoto && readOnly && <span className="inline-flex items-center gap-1 rounded-pill bg-ink/[0.06] px-2 py-0.5 text-2xs font-semibold text-ink-2"><Camera size={11} /> Photo allowed</span>}
                     {s.allowPhoto && !readOnly && (
-                      <button type="button" disabled={!interactive} onClick={() => onPhoto?.(s.id)}
-                        className={clsx('inline-flex items-center gap-1 rounded-pill border px-2 py-0.5 text-2xs font-semibold transition disabled:opacity-50', photos.includes(s.id) ? 'border-ok/30 bg-ok/10 text-ok' : 'border-line-strong text-ink-2 hover:bg-surface-2')}>
-                        {photos.includes(s.id) ? <><Check size={11} /> Photo attached</> : <><Camera size={11} /> Add photo</>}
-                      </button>
+                      <label className={clsx('inline-flex items-center gap-1 rounded-pill border px-2 py-0.5 text-2xs font-semibold transition focus-within:ring-2 focus-within:ring-forest-600',
+                        interactive ? 'cursor-pointer' : 'opacity-50', photos.includes(s.id) ? 'border-ok/30 bg-ok/10 text-ok' : 'border-line-strong text-ink-2 hover:bg-surface-2')}>
+                        {photos.includes(s.id) ? <><Check size={11} /> Photo attached · replace</> : <><Camera size={11} /> Add photo</>}
+                        <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={!interactive} aria-label={`Add a photo for step ${n}`}
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) onPhoto?.(s.id, f); e.target.value = '' }} />
+                      </label>
                     )}
+                    {s.allowPhoto && photoKeys[s.id] && photoUrl(photoKeys[s.id]!) && <img src={photoUrl(photoKeys[s.id]!)} alt={`Photo for step ${n}`} className="h-14 w-14 rounded-cell border border-line object-cover" />}
                   </div>
                 )}
               </div>

@@ -5,11 +5,15 @@ export type Portal = 'employee' | 'manager' | 'author'
 /** base = shift manager / room attendant / author; senior = senior manager; admin = property admin */
 export type Tier = 'base' | 'senior' | 'admin'
 
-export interface Property { id: string; name: string; city: string }
+export interface Property {
+  id: string; name: string; city: string; timeZone: string
+  /** Platform foundation settings */
+  codeScheme: string; defaultTimeTargetMin: number
+}
 
 export interface RoleGrant { propertyId: string; portal: Portal; tier: Tier; personId: string }
 
-export interface Account { id: string; label: string; grants: RoleGrant[]; primary: Portal }
+export interface Account { id: string; personId: string; name: string; grants: RoleGrant[]; disabled?: boolean }
 
 export interface JobRole { id: string; propertyId: string; name: string; team: string }
 
@@ -51,9 +55,15 @@ export interface Sop {
   retiredAt?: string; retiredById?: string; department?: string
 }
 
+/**
+ * A recurring shift. The server stores start/end as hotel-local "HH:MM" (an end before start crosses midnight);
+ * the client store hands screens the concrete instance for the current hotel day as ISO instants (see db.ts).
+ */
 export interface Shift {
-  id: string; propertyId: string; name: 'Morning' | 'Afternoon' | 'Night'; start: string; end: string; staffTarget: number
+  id: string; propertyId: string; name: string; start: string; end: string; staffTarget: number
   team: string; memberIds: string[]
+  /** Client only, on a materialised shift: the stored "HH:MM" times and the standing roster (memberIds is who is on today). */
+  startTime?: string; endTime?: string; rosterIds?: string[]
 }
 
 export type Occupancy = 'vacant_clean' | 'vacant_dirty' | 'occupied' | 'due_out' | 'arrival' | 'out_of_order'
@@ -71,6 +81,8 @@ export interface Task {
   sopVersionId: string
   start: string; end: string; priority: Priority; status: TaskStatus
   doneStepIds: string[]; photoStepIds: string[]
+  /** stepId → photo object key (R2 on the live server) */
+  photoKeys?: Record<string, string>
   mode: 'guided' | 'standard'
   startedAt?: string; completedAt?: string
   urgentEnded?: { at: string; reason: string; seen: boolean }

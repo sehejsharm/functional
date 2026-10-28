@@ -3,12 +3,12 @@ import {
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Bars, LineChart } from '@/components/Charts'
-import { Badge, Button, Card, CardHeader, DataTable, EmptyState, PageHeader, Select, StatCard, Tabs, type Column } from '@/components/ui'
+import { Badge, Button, Card, CardHeader, DataTable, EmptyState, PageHeader, Select, StatCard, type Column } from '@/components/ui'
 import { byDay, durationHistogram, stats } from '@/lib/analytics'
 import { downloadCsv } from '@/lib/csv'
 import { APPROVALS_REQUIRED, byId, useDB } from '@/lib/db'
 import { tierLabel } from '@/lib/permissions'
-import { useSession } from '@/lib/session'
+import { useGrants, useSession } from '@/lib/session'
 import { fDate, fDateTime, hotelDateKey, minutesBetween } from '@/lib/time'
 import { confirm, toast } from '@/lib/toast'
 import type { AuditEntry, SopVersion, Tier } from '@/lib/types'
@@ -97,29 +97,11 @@ export function UseResults() {
   )
 }
 
-// ── Platform & audit (admin) ─────────────────────────────────────────────────
-
-type PTab = 'audit' | 'roles' | 'policy' | 'data'
-
-export function PlatformFoundation() {
-  const db = useDB()
-  const [tab, setTab] = useState<PTab>('audit')
-  return (
-    <div className="space-y-6">
-      <PageHeader eyebrow="Administration" title="Platform & audit" description={`How Mise is set up at ${db.properties[0]?.name ?? 'this property'}, and the permanent record of every change.`}>
-        <Tabs value={tab} onChange={setTab} items={[{ id: 'audit', label: 'Audit log', count: db.audit.length }, { id: 'roles', label: 'Roles & access' }, { id: 'policy', label: 'Release policy' }, { id: 'data', label: 'Data' }]} />
-      </PageHeader>
-      {tab === 'audit' && <AuditLog />}
-      {tab === 'roles' && <Roles />}
-      {tab === 'policy' && <Policy />}
-      {tab === 'data' && <DataTab />}
-    </div>
-  )
-}
+// ── Platform & audit (admin): sections composed by Platform.tsx ─────────────
 
 type Row = AuditEntry & { area: AuditArea; what: string; detailText: string; actor: string }
 
-function AuditLog() {
+export function AuditLog() {
   const db = useDB()
   const [area, setArea] = useState<'all' | AuditArea>('all')
   const [actor, setActor] = useState('all')
@@ -158,10 +140,11 @@ const TIERS: { tier: Tier; can: string[] }[] = [
   { tier: 'admin', can: ['Everything a senior manager can do', 'Platform & audit: audit log, roles, release policy', 'Demo data reset'] },
 ]
 
-function Roles() {
+export function RolesOverview() {
   const db = useDB()
   const { grant } = usePersona('author')
   const demoTier = useSession((s) => s.demoTier)
+  const demoGrants = useGrants()
   type R = { id: string; name: string; team: string; total: number; active: number; leave: number; sops: number }
   const rows: R[] = db.jobRoles.map((r) => {
     const ppl = db.people.filter((p) => p.jobRoleId === r.id)
@@ -193,17 +176,17 @@ function Roles() {
             ))}
           </ol>
         </Card>
-        <Card>
+        {db.mode === 'demo' && <Card>
           <CardHeader icon={Users} title="Portal grants" description="Who the shared demo account signs in as, per portal" />
           <ul className="divide-y divide-line">
-            {db.accounts.flatMap((a) => a.grants).map((g) => (
+            {demoGrants.map((g) => (
               <li key={g.portal} className="flex items-center justify-between gap-3 px-5 py-3">
                 <PersonChip id={g.personId} sub={`${g.portal[0].toUpperCase()}${g.portal.slice(1)} portal`} />
                 <span className="flex flex-col items-end gap-0.5"><Badge>{tierLabel[g.portal !== 'employee' && demoTier ? demoTier : g.tier]}</Badge>{g.portal !== 'employee' && demoTier && demoTier !== g.tier && <span className="text-2xs text-muted">demo override · granted {tierLabel[g.tier]}</span>}</span>
               </li>
             ))}
           </ul>
-        </Card>
+        </Card>}
       </div>
     </div>
   )
@@ -218,7 +201,7 @@ function Rule({ icon: I, title, children }: { icon: typeof Lock; title: string; 
   )
 }
 
-function Policy() {
+export function Policy() {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <Card>
@@ -252,7 +235,7 @@ function Policy() {
   )
 }
 
-function DataTab() {
+export function DataTab() {
   const db = useDB()
   const counts: [string, number][] = [
     ['SOPs', db.sops.length], ['SOP versions', db.sopVersions.length], ['Tasks', db.tasks.length], ['Incidents', db.issues.length],
@@ -266,22 +249,25 @@ function DataTab() {
     useRevisionLinks.setState({ byDraft: {} })
     toast.success('Demo data reset', { description: 'All portals are back to the seeded state for today.' })
   }
+  const demo = db.mode === 'demo'
   return (
     <div className="grid gap-6 lg:grid-cols-3">
-      <Card className="lg:col-span-2">
+      <Card className={demo ? 'lg:col-span-2' : 'lg:col-span-3'}>
         <CardHeader icon={Database} title="What’s stored" description="Live record counts for this property" />
         <div className="grid grid-cols-2 gap-3 p-5 sm:grid-cols-4">
           {counts.map(([k, n]) => <div key={k} className="rounded-cell border border-line bg-surface-2 px-3 py-3"><div className="text-2xl font-semibold tabular text-ink">{n}</div><div className="text-xs text-muted">{k}</div></div>)}
         </div>
-        <p className="border-t border-line px-5 py-3 text-xs text-muted">Demo build: data lives in this browser and syncs between open tabs. It re-seeds automatically at the start of each hotel day.</p>
+        <p className="border-t border-line px-5 py-3 text-xs text-muted">{demo
+          ? 'Demo build: data lives in this browser and syncs between open tabs. It re-seeds automatically at the start of each hotel day.'
+          : 'Stored on the hotel server (one Cloudflare Durable Object per property). Sign-in accounts live in the server database; photos in object storage.'}</p>
       </Card>
-      <Card className="border-danger/30">
+      {demo && <Card className="border-danger/30">
         <CardHeader icon={RotateCcw} title="Reset demo data" description="Start the demo again from a clean slate" />
         <div className="space-y-4 p-5">
           <p className="text-sm text-ink-2">Restores the seeded SOPs, staff, rooms, 14 days of task history and the audit log. This can’t be undone.</p>
           <Button variant="danger" icon={RotateCcw} onClick={onReset}>Reset demo data</Button>
         </div>
-      </Card>
+      </Card>}
     </div>
   )
 }

@@ -223,6 +223,7 @@ export function CreateSop() {
     }
     const created = !draft
     const d = draft ?? useDB.getState().newDraftFrom(null, me)
+    if (!d) return null
     const next: SopVersion = {
       ...d, title: form.title.trim(), code: codeLocked ? d.code : form.code.trim().toUpperCase(), jobRoleId: form.jobRoleId, language: form.language,
       timeTargetMin: Number.isInteger(minutes) && minutes > 0 ? Math.min(240, minutes) : d.timeTargetMin, tags: form.tags, steps,
@@ -284,7 +285,7 @@ export function CreateSop() {
     try {
       const lines = isPdf ? await readPdfLines(file) : textToLines(await file.text())
       if (!lines.length) throw new Error('No text could be read from this file. If it is a scanned image, type the steps in instead.')
-      const r = parseSop(lines, db.jobRoles, file.name, { propertyName: db.properties[0]?.name })
+      const r = parseSop(lines, db.jobRoles, file.name, { propertyName: db.property.name })
       if (!r.steps.length) throw new Error(r.warnings[0] ?? 'No steps were found in this document.')
       setUndoForm(form)
       setForm((f) => ({

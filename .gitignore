@@ -7,3 +7,7 @@ dist
 
 # Agent worktrees
 .claude/worktrees/
+
+# Cloudflare Worker local state
+.dev.vars
+worker/.wrangler

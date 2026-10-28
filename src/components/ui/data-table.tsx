@@ -111,7 +111,7 @@ export function DataTable<T>({ rows, columns, rowKey, search, searchPlaceholder 
           <div className="ml-auto flex flex-wrap gap-2">{bulkActions?.(selected, clear)}</div>
         </div>
       )}
-      <div className="scroll-shadow-x overflow-x-auto">
+      <div className="scroll-shadow-x relative overflow-x-auto">
         <table className="w-full border-collapse">
           {caption && <caption className="sr-only">{caption}</caption>}
           <thead className="bg-surface-2">

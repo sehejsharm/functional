@@ -8,7 +8,6 @@ import { hotelDateKey } from '@/lib/time'
 import type { AuditEntry, Feedback, Sop, SopStep, SopVersion, VersionStatus } from '@/lib/types'
 
 const uid = (p: string) => `${p}-${Math.random().toString(36).slice(2, 9)}`
-const nowIso = () => new Date().toISOString()
 const DAY = 86_400_000
 
 // ── Selectors ────────────────────────────────────────────────────────────────
@@ -95,20 +94,21 @@ export const useRevisionLinks = create<Links>()(persist((set) => ({
 const db = () => useDB.getState()
 
 /** Saves a draft and keeps the library record (code, department) in step. Returns the saved version. */
-export function saveSopDraft(v: SopVersion, actorId: string, department?: string, created = false): SopVersion {
-  const s = db()
-  const saved = s.saveDraft(v)
-  useDB.setState((st) => {
-    const sop = byId(st.sops, v.sopId)
-    if (!sop) return { sops: [...st.sops, { id: v.sopId, propertyId: v.propertyId, code: v.code, currentVersionId: null, department: department || undefined }] }
-    return { sops: st.sops.map((x) => (x.id !== v.sopId ? x : { ...x, department: department || x.department, code: x.currentVersionId ? x.code : v.code || x.code })) }
-  })
-  s.log(actorId, created ? 'sop.draft_created' : 'sop.draft_saved', `${v.code || 'Untitled'} ${v.version}`)
-  return saved
+export function saveSopDraft(v: SopVersion, _actorId: string, department?: string, created = false): SopVersion {
+  return db().saveDraft(v, { department, created })
+}
+
+/** A new draft of `sopId` (new or existing) carrying `content`, as a fresh 1.0. */
+function draftWith(sopId: string, actorId: string, content: SopVersion, o: { code?: string; title?: string; department?: string; freshStepIds?: boolean } = {}): SopVersion | null {
+  const d = db().newDraftFrom(null, actorId, undefined, sopId)
+  if (!d) return null
+  const steps = o.freshStepIds ? content.steps.map((st): SopStep => ({ ...st, id: uid('st') })) : content.steps
+  return db().saveDraft({ ...d, title: o.title ?? content.title, code: o.code ?? content.code, jobRoleId: content.jobRoleId, language: content.language, tags: content.tags,
+    timeTargetMin: content.timeTargetMin, steps, catalogue: content.catalogue }, { department: o.department, created: true })
 }
 
 /** Opens the author's existing draft of this SOP, or starts a revision from its current published version. */
-export function startRevision(sopId: string, actorId: string): { version: SopVersion; reused: boolean } | { blocked: SopVersion } {
+export function startRevision(sopId: string, actorId: string): { version: SopVersion; reused: boolean } | { blocked: SopVersion } | null {
   const s = db()
   const open = openRevisionOf(s, sopId)
   if (open && (open.status === 'draft' || open.status === 'changes_requested') && open.authorId === actorId) return { version: open, reused: true }
@@ -116,17 +116,14 @@ export function startRevision(sopId: string, actorId: string): { version: SopVer
   const cur = currentOf(s, sopId)
   if (cur) {
     const d = s.newDraftFrom(cur.id, actorId)
+    if (!d) return null
     s.log(actorId, 'sop.revision_started', `${d.code} ${d.version} from ${cur.version}`)
     return { version: d, reused: false }
   }
   // Never published (e.g. a rejected first version): rework it as a fresh 1.0 of the same SOP.
   const src = versionsOf(s, sopId)[0]
-  const at = nowIso()
-  const d: SopVersion = src ? {
-    ...src, id: uid('v'), version: '1.0', baseVersionId: null, status: 'draft', authorId: actorId, createdAt: at, updatedAt: at, reviews: [],
-    submittedAt: undefined, publishedAt: undefined, effectiveAt: undefined,
-  } : s.newDraftFrom(null, actorId)
-  if (src) useDB.setState((st) => ({ sopVersions: [...st.sopVersions, d] }))
+  const d = src ? draftWith(sopId, actorId, src) : s.newDraftFrom(null, actorId, undefined, sopId)
+  if (!d) return null
   s.log(actorId, 'sop.revision_started', `${d.code} ${d.version} reworked`)
   return { version: d, reused: false }
 }
@@ -139,27 +136,16 @@ export function duplicateSop(sopId: string, actorId: string): SopVersion | null 
   const taken = new Set([...s.sops.map((x) => x.code), ...s.sopVersions.map((v) => v.code)].map((c) => c.toUpperCase()))
   let n = 2, code = `${src.code}-${n}`
   while (taken.has(code.toUpperCase())) code = `${src.code}-${++n}`
-  const at = nowIso()
-  const d: SopVersion = {
-    ...src, id: uid('v'), sopId: uid('sop'), version: '1.0', baseVersionId: null, status: 'draft', code, title: `${src.title} (copy)`,
-    steps: src.steps.map((st): SopStep => ({ ...st, id: uid('st') })), authorId: actorId, createdAt: at, updatedAt: at, reviews: [],
-    submittedAt: undefined, publishedAt: undefined, effectiveAt: undefined,
-  }
-  const department = byId(s.sops, sopId)?.department
-  useDB.setState((st) => ({ sopVersions: [...st.sopVersions, d], sops: [...st.sops, { id: d.sopId, propertyId: d.propertyId, code, currentVersionId: null, department }] }))
-  s.log(actorId, 'sop.duplicated', `${src.code} ${src.version} → ${code} 1.0`)
+  const d = draftWith(uid('sop'), actorId, src, { code, title: `${src.title} (copy)`, department: byId(s.sops, sopId)?.department, freshStepIds: true })
+  if (d) s.log(actorId, 'sop.duplicated', `${src.code} ${src.version} → ${code} 1.0`)
   return d
 }
 
 /** Deletes a draft; a brand-new SOP that only ever had this draft leaves the library too. */
-export function deleteSopDraft(versionId: string, actorId: string) {
-  const s = db()
-  const v = byId(s.sopVersions, versionId)
+export function deleteSopDraft(versionId: string, _actorId: string) {
+  const v = byId(db().sopVersions, versionId)
   if (!v || v.status !== 'draft') return false
-  s.deleteDraft(versionId)
-  useDB.setState((st) => (st.sopVersions.some((x) => x.sopId === v.sopId) ? {} : { sops: st.sops.filter((x) => x.id !== v.sopId) }))
-  s.log(actorId, 'sop.draft_deleted', `${v.code || 'Untitled'} ${v.version}`)
-  return true
+  return db().deleteDraft(versionId)
 }
 
 /**
@@ -172,7 +158,7 @@ export function startRevisionWithFeedback(f: Feedback, actorId: string): { versi
   if (!fv) return null
   const open = openRevisionOf(s, fv.sopId)
   if (open?.status === 'in_review') return { blocked: open }
-  let version: SopVersion, reused = false
+  let version: SopVersion | null, reused = false
   if (open && open.authorId === actorId) {
     reused = true
     version = s.saveDraft({ ...open, steps: open.steps.map((st) => (st.id === f.stepId ? { ...st, guestCare: `${st.guestCare}\n[Feedback] ${f.text}`.trim() } : st)) })
@@ -180,8 +166,9 @@ export function startRevisionWithFeedback(f: Feedback, actorId: string): { versi
   } else {
     const from = currentOf(s, fv.sopId) ?? fv
     version = s.newDraftFrom(from.id, actorId, { feedbackId: f.id, text: f.text, stepId: f.stepId })
-    s.log(actorId, 'sop.revision_started', `${version.code} ${version.version} from feedback`)
+    if (version) s.log(actorId, 'sop.revision_started', `${version.code} ${version.version} from feedback`)
   }
+  if (!version) return null
   useRevisionLinks.getState().link(version.id, f.id)
   s.log(actorId, 'feedback.applied', `${fv.code}: ${f.text.slice(0, 60)}`)
   return { version, reused }
@@ -193,7 +180,7 @@ export function markFeedbackDone(f: Feedback, actorId: string) {
   s.log(actorId, 'feedback.resolved', `${byId(s.sopVersions, f.sopVersionId)?.code ?? ''}: ${f.text.slice(0, 60)}`)
 }
 export function reopenFeedback(id: string) {
-  useDB.setState((st) => ({ feedback: st.feedback.map((x) => (x.id === id ? { ...x, status: 'open' } : x)) }))
+  db().resolveFeedback(id, true)
 }
 
 // ── Audit trail, humanised ───────────────────────────────────────────────────

@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
+import { DEMO } from '@/lib/api'
 import { LifeBuoy } from 'lucide-react'
-import { Button, Drawer, SearchBox } from '@/components/ui'
+import { Drawer, SearchBox } from '@/components/ui'
 import type { Portal } from '@/lib/types'
 
 const FAQ: Record<Portal | 'login', { q: string; a: string }[]> = {
   login: [
-    { q: 'Where do I get my passkey?', a: 'Your hotel manager issues it. Ask at the housekeeping office if you have lost it.' },
+    { q: 'Where do I get my passkey?', a: DEMO ? 'This is the shared demo: everyone uses the demo passkey shown under the sign-in button.' : 'Your property admin creates it for you. If you lose it, they can issue a new one — the old one stops working.' },
     { q: 'Can I paste my passkey?', a: 'Yes. Paste, password managers and phone autofill all work.' },
   ],
   employee: [
@@ -29,7 +30,8 @@ const FAQ: Record<Portal | 'login', { q: string; a: string }[]> = {
 export function HelpDrawer({ open, onClose, portal }: { open: boolean; onClose: () => void; portal: Portal | 'login' }) {
   const [q, setQ] = useState('')
   const items = useMemo(() => FAQ[portal].filter((f) => (f.q + f.a).toLowerCase().includes(q.toLowerCase())), [portal, q])
-  const [sent, setSent] = useState(false)
+  // Support contact is configured per deployment (VITE_SUPPORT_EMAIL); without it the button is hidden rather than pretend.
+  const support = import.meta.env.VITE_SUPPORT_EMAIL as string | undefined
   return (
     <Drawer open={open} onClose={onClose} title="Help & shortcuts" description="Answers for this portal. Press ⌘K anywhere to search.">
       <SearchBox value={q} onChange={setQ} placeholder="Search help" />
@@ -47,9 +49,11 @@ export function HelpDrawer({ open, onClose, portal }: { open: boolean; onClose: 
           <dt>Close a panel</dt><dd><kbd className="kbd">Esc</kbd></dd>
         </dl>
       </div>
-      <Button variant="primary" icon={LifeBuoy} block className="mt-4" onClick={() => setSent(true)} disabled={sent}>
-        {sent ? 'Support has been notified' : 'Contact support'}
-      </Button>
+      {support && (
+        <a href={`mailto:${support}?subject=${encodeURIComponent(`Mise help (${portal})`)}`} className="mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-cell bg-forest-900 text-sm font-medium text-white shadow-sm hover:bg-forest-800">
+          <LifeBuoy size={16} aria-hidden /> Contact support
+        </a>
+      )}
     </Drawer>
   )
 }

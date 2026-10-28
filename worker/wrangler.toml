@@ -1,0 +1,28 @@
+name = "mise-api"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# Comma-separated list of browser origins allowed to call the API (your Vercel URLs).
+ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:4173"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mise"
+database_id = "REPLACE_WITH_D1_ID"
+migrations_dir = "migrations"
+
+[[durable_objects.bindings]]
+name = "HUB"
+class_name = "PropertyHub"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PropertyHub"]
+
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "mise-photos"
+
+# Secrets (wrangler secret put): PASSKEY_PEPPER, SETUP_TOKEN

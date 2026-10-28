@@ -4,7 +4,7 @@ import type {
 } from './types'
 import { HOUR, MIN, hotelDateKey, hotelMidnight, iso } from './time'
 
-export const PROPERTY: Property = { id: 'aurora-colombo', name: 'Aurora Grand Colombo', city: 'Colombo' }
+export const PROPERTY: Property = { id: 'aurora-colombo', name: 'Aurora Grand Colombo', city: 'Colombo', timeZone: 'Asia/Colombo', codeScheme: '{TEAM}-{NUMBER}', defaultTimeTargetMin: 15 }
 const P = PROPERTY.id
 
 const step = (id: string, icon: string, instruction: string, o: Partial<SopStep> = {}): SopStep => ({
@@ -60,7 +60,7 @@ export function buildSeed(now = Date.now()) {
 
   const accounts: Account[] = [
     {
-      id: 'shared-demo', label: 'Shared demo', primary: 'employee',
+      id: 'shared-demo', personId: 'elena', name: 'Shared demo',
       grants: [
         { propertyId: P, portal: 'employee', tier: 'base', personId: 'maya' },
         { propertyId: P, portal: 'manager', tier: 'base', personId: 'elena' },

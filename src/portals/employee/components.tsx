@@ -321,7 +321,7 @@ export function NoticeCard({ notice, personId, compact }: { notice: Notice; pers
  */
 export function StepList({ steps, version, reader, hideLockHint, ...rest }: {
   steps: SopStep[]; version: string; reader?: boolean; hideLockHint?: boolean
-  done?: string[]; photos?: string[]; interactive?: boolean; mode?: 'guided' | 'standard'; onToggle?: (id: string) => void; onPhoto?: (id: string) => void; title?: string
+  done?: string[]; photos?: string[]; interactive?: boolean; mode?: 'guided' | 'standard'; onToggle?: (id: string) => void; onPhoto?: (id: string, file: File) => void; photoKeys?: Record<string, string>; title?: string
 }) {
   return (
     <div className={clsx(hideLockHint && !reader && '[&>section>p]:hidden')}>
